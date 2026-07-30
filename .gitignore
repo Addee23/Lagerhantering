@@ -44,3 +44,5 @@ next-env.d.ts
 # fas-logg.md döljs INTE - den får synas som utvecklingslogg.
 docs/dagsplan.md
 docs/loggbok-lia2.md
+
+/src/generated/prisma
