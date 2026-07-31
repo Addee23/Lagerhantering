@@ -128,3 +128,48 @@ inloggning, navigation funkar på mobil (hamburgermeny) och dator (sidomeny), pe
 rätt PIN loggas, fel PIN hanteras/blockeras, händelser syns i aktivitetsloggen.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 2 (samma dag, 2026-07-31) – Grundregister: Produkter, Kategorier, Varumärken, Leverantörer
+
+**Vad byggdes:**
+- `Category`/`Brand`: enkla register med namn + aktiv/inaktiv, skapas och inaktiveras direkt i
+  listan.
+- `Supplier`: skapas med bara namn (skills, 8.1) - övriga uppgifter (reklamationsmejl,
+  standardgräns för kort bäst före, kontaktperson m.m.) fylls i på en separat redigeringssida.
+- `Product`: namn, valfri streckkod, kategori, varumärke, lägsta önskade lagersaldo, normalt
+  beställningsantal. Inget "enhet"-fält alls - flak/pall är implicit och behöver inte väljas
+  (skills/business-rules.md, punkt 2).
+- `SupplierProduct`: kopplar en produkt till flera leverantörer, varje koppling med sitt eget
+  artikelnummer/namn - testat med två leverantörer på samma produkt.
+- Dubblettkontroll vid produktskapande (samma streckkod eller liknande namn) - varnar men
+  blockerar inte, med ett "Skapa ändå"-läge.
+- Sökning över produkter på namn, streckkod och leverantörsartikelnummer.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (Category, Brand, Supplier, Product, SupplierProduct) + migrering
+- `src/lib/actions/{category,brand,supplier,product,supplier-product}-actions.ts`
+- `src/app/(app)/{categories,brands,suppliers,products}/page.tsx` +
+  `suppliers/[id]/edit`, `products/new`, `products/[id]/edit`
+
+**Vad du lärde dig idag (utöver Fas 1):**
+- Varför en cachad Prisma-klient (`globalThis`-singleton) kräver en full omstart av dev-servern
+  efter schemaändringar - inte bara en vanlig kodändring/hot-reload.
+- Server Actions kan bekräfta lyckad sparning genom en redirect med `?saved=true` + en grön
+  banderoll, istället för att bara tyst returnera till samma formulär.
+- Vikten av tydlig navigation direkt på sidan (inte bara i hamburgermenyn) efter en åtgärd som
+  spara/skapa.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen paginering på produktlistan än (inget problem förrän vi har många produkter).
+- Leverantörslistan saknar sökfunktion (kommer vid behov).
+- Automatisk "liknande namn"-matchning är enkel (`contains`, skiftlägesokänslig substr) - inte en
+  riktig fuzzy-matchning. Tillräckligt för nu, kan förfinas senare.
+
+**Testresultat:** OK — kategori/varumärke/leverantör kan skapas och inaktiveras, leverantör kan
+skapas med bara namn och sedan kompletteras, produkt kan skapas/redigeras med kategori och
+varumärke, dubblettvarningen dyker upp och går att förbikoppla medvetet, samma produkt kopplad
+till två leverantörer, sökning fungerar.
+
+**Godkänt att gå vidare:** Ja
