@@ -20,3 +20,46 @@ model AppSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// Den gemensamma systeminloggningen (skills/authentication-and-pin.md, 21.1).
+// Låser hela appen bakom en inloggning - separat från personalens PIN-koder.
+model SystemUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+// En personalmedlem som kan bekräfta åtgärder med sin PIN-kod
+// (skills/authentication-and-pin.md, 21.2-21.3). PIN sparas ALDRIG i klartext.
+model StaffMember {
+  id                Int       @id @default(autoincrement())
+  name              String
+  pinHash           String
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime?
+  comment           String?
+  // Bygger blockering/fördröjning av upprepade felaktiga PIN-försök
+  // (skills/authentication-and-pin.md, 21.4).
+  failedPinAttempts Int       @default(0)
+  pinLockedUntil    DateTime?
+
+  activityLogs ActivityLog[]
+}
+
+// Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
+// Fler kopplingar (leverans, hämtlista, reklamation) läggs till i senare
+// faser när de objekten finns.
+model ActivityLog {
+  id            Int      @id @default(autoincrement())
+  eventType     String
+  description   String
+  previousValue String?
+  newValue      String?
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+  staffMemberId Int?
+}
