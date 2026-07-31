@@ -63,3 +63,82 @@ model ActivityLog {
   staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
   staffMemberId Int?
 }
+
+// Fas 2 - Grundregister (skills/business-rules.md, punkt 5 och 6:
+// varumärke och leverantör är olika register; kategorier används för
+// filtrering av bl.a. bäst före-listan).
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  active   Boolean   @default(true)
+  products Product[]
+}
+
+model Brand {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  active   Boolean   @default(true)
+  comment  String?
+  products Product[]
+}
+
+model Supplier {
+  id                     Int      @id @default(autoincrement())
+  name                   String
+  orgNumber              String?
+  customerNumber         String?
+  generalEmail           String?
+  complaintEmail         String?
+  ccRecipient            String?
+  phone                  String?
+  contactPerson          String?
+  notes                  String?
+  complaintInstructions  String?
+  // Standardgräns för kort bäst före-datum i dagar (skills/expiry-rules.md).
+  // Null = använd systemets standard (90 dagar).
+  defaultShortExpiryDays Int?
+  active                 Boolean  @default(true)
+  createdAt              DateTime @default(now())
+
+  supplierProducts SupplierProduct[]
+}
+
+// En produkt använder alltid den fasta enheten flak/pall
+// (skills/business-rules.md, punkt 2) - därför finns inget "unit"-fält,
+// det skulle bara vara ett skenbart val som ändå alltid är samma värde.
+model Product {
+  id                  Int       @id @default(autoincrement())
+  // Hela Rubbets eget namn - kan skilja sig från leverantörens (skills, 6.1).
+  name                String
+  barcode             String?
+  categoryId          Int?
+  category            Category? @relation(fields: [categoryId], references: [id])
+  brandId             Int?
+  brand               Brand?    @relation(fields: [brandId], references: [id])
+  minStockLevel       Int?
+  normalOrderQuantity Int?
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  supplierProducts SupplierProduct[]
+}
+
+// Kopplingen mellan en produkt och EN specifik leverantör
+// (skills/business-rules.md, punkt 6: samma produkt kan köpas från flera
+// leverantörer, varje koppling har sitt eget namn/artikelnummer).
+model SupplierProduct {
+  id                    Int      @id @default(autoincrement())
+  productId             Int
+  product               Product  @relation(fields: [productId], references: [id])
+  supplierId            Int
+  supplier              Supplier @relation(fields: [supplierId], references: [id])
+  supplierProductName   String?
+  supplierArticleNumber String?
+  barcode               String?
+  comment               String?
+  createdAt             DateTime @default(now())
+
+  @@unique([productId, supplierId])
+}
