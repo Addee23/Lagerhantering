@@ -45,7 +45,8 @@ model StaffMember {
   failedPinAttempts Int       @default(0)
   pinLockedUntil    DateTime?
 
-  activityLogs ActivityLog[]
+  activityLogs   ActivityLog[]
+  stockMovements StockMovement[]
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
@@ -123,6 +124,8 @@ model Product {
   updatedAt           DateTime  @updatedAt
 
   supplierProducts SupplierProduct[]
+  stockBatches     StockBatch[]
+  stockMovements   StockMovement[]
 }
 
 // Kopplingen mellan en produkt och EN specifik leverantör
@@ -141,4 +144,40 @@ model SupplierProduct {
   createdAt             DateTime @default(now())
 
   @@unique([productId, supplierId])
+}
+
+// Fas 3 - Externt lager (skills/stock-and-pickup-rules.md).
+// Lagret (till skillnad från Butik) har ett exakt, kontrollerat saldo.
+// Ett lagerparti motsvarar en specifik "batch" av en produkt, med sitt
+// eget bäst före-datum. Produktens totala lagersaldo = summan av
+// quantity för alla dess aktiva (quantity > 0) lagerpartier.
+model StockBatch {
+  id         Int       @id @default(autoincrement())
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+  quantity   Int
+  expiryDate DateTime?
+  // Fritextreferens tills riktiga Delivery-kopplingen byggs i Fas 5.
+  note       String?
+  createdAt  DateTime  @default(now())
+
+  movements StockMovement[]
+}
+
+// Oföränderlig lagerhistorik - varje förändring av ett lagersaldo skapar
+// en NY rad här, historiken skrivs aldrig över (skills/business-rules.md,
+// punkt 15).
+model StockMovement {
+  id            Int          @id @default(autoincrement())
+  productId     Int
+  product       Product      @relation(fields: [productId], references: [id])
+  stockBatchId  Int?
+  stockBatch    StockBatch?  @relation(fields: [stockBatchId], references: [id])
+  // T.ex. "mottagen", "korrigering", "kassation".
+  changeType    String
+  quantityDelta Int
+  reason        String?
+  staffMemberId Int?
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+  createdAt     DateTime     @default(now())
 }

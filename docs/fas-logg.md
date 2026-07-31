@@ -173,3 +173,38 @@ varumärke, dubblettvarningen dyker upp och går att förbikoppla medvetet, samm
 till två leverantörer, sökning fungerar.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 3 (samma dag, 2026-07-31) – Externt lager och lagerhistorik (KOD KLAR, TESTNING PÅGÅR)
+
+**Vad byggdes:**
+- `StockBatch` (lagerparti med antal + valfritt bäst före-datum) och `StockMovement`
+  (oföränderlig lagerhistorik - "mottagen", "korrigering", "kassation").
+- Lagerförteckning (`/warehouse`) som visar totalt saldo per produkt (summan av dess aktiva
+  lagerpartier) och flaggar produkter under "lägsta önskade lagersaldo".
+- Produktens lagersida (`/warehouse/[id]`): ta emot nytt lagerparti, korrigera eller kassera ett
+  befintligt parti, samt historik.
+- Alla lagerförändringar kräver PIN-bekräftelse (skills/authentication-and-pin.md) och skriver
+  både en `StockMovement`- och en `ActivityLog`-rad.
+- Negativt saldo förhindras: kassation kan aldrig ta bort fler än vad som finns kvar i partiet.
+- Delade upp PIN-verifieringslogiken (`src/lib/pin-verification.ts`) så både dashboardens
+  PIN-test och de nya lageråtgärderna återanvänder samma kontroll, istället för att duplicera
+  den.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (StockBatch, StockMovement) + migrering
+- `src/lib/pin-verification.ts`, `src/lib/actions/warehouse-actions.ts`
+- `src/components/StaffPinFields.tsx`
+- `src/app/(app)/warehouse/page.tsx`, `src/app/(app)/warehouse/[id]/page.tsx`
+
+**Kända begränsningar / saker vi skjuter upp:**
+- "Mottaget lagerparti" är fristående än - riktig koppling till en faktisk inleverans (Delivery)
+  byggs i Fas 5.
+- Lagersaldot beräknas alltid live (summa av lagerpartier) istället för att cachas - enklare och
+  garanterat korrekt i den här skalan, kan optimeras senare om det behövs.
+
+**Testresultat:** Väntar — koden är klar, typkontroll och lint är gröna, men du testar det
+faktiska flödet i webbläsaren på måndag istället för idag.
+
+**Godkänt att gå vidare:** Nej, väntar på din testning måndag 3/8 innan Fas 4 påbörjas.
