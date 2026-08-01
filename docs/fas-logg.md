@@ -176,7 +176,7 @@ till två leverantörer, sökning fungerar.
 
 ---
 
-### Fas 3 (samma dag, 2026-07-31) – Externt lager och lagerhistorik (KOD KLAR, TESTNING PÅGÅR)
+### Fas 3 (kodad 2026-07-31, testad 2026-08-01) – Externt lager och lagerhistorik
 
 **Vad byggdes:**
 - `StockBatch` (lagerparti med antal + valfritt bäst före-datum) och `StockMovement`
@@ -204,7 +204,9 @@ till två leverantörer, sökning fungerar.
 - Lagersaldot beräknas alltid live (summa av lagerpartier) istället för att cachas - enklare och
   garanterat korrekt i den här skalan, kan optimeras senare om det behövs.
 
-**Testresultat:** Väntar — koden är klar, typkontroll och lint är gröna, men du testar det
-faktiska flödet i webbläsaren på måndag istället för idag.
+**Testresultat:** OK — testat i webbläsaren en dag tidigare än planerat (lördag istället för
+måndag, på användarens initiativ): mottagning av lagerparti ökar saldot korrekt, lågt
+saldo-varningen visas, korrigering och kassation fungerar och loggas i historiken, fel PIN
+avvisas utan att spara, kassation kan inte överstiga aktuellt antal.
 
-**Godkänt att gå vidare:** Nej, väntar på din testning måndag 3/8 innan Fas 4 påbörjas.
+**Godkänt att gå vidare:** Ja
