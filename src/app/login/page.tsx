@@ -1,4 +1,5 @@
 import { loginAction } from "@/lib/actions/auth-actions";
+import { Alert } from "@/components/Alert";
 
 export default async function LoginPage({
   searchParams,
@@ -22,11 +23,7 @@ export default async function LoginPage({
           </p>
         </div>
 
-        {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            Fel användarnamn eller lösenord.
-          </p>
-        )}
+        {error && <Alert tone="error">Fel användarnamn eller lösenord.</Alert>}
 
         <div className="space-y-1">
           <label

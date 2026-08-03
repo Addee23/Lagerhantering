@@ -8,10 +8,8 @@ import {
   correctStockBatchAction,
   discardStockBatchAction,
 } from "@/lib/actions/warehouse-actions";
-
-const inputClass =
-  "w-full rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800";
-const labelClass = "mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300";
+import { inputClass, labelClass } from "@/lib/form-styles";
+import { Alert } from "@/components/Alert";
 
 export default async function WarehouseProductPage({
   params,
@@ -63,9 +61,9 @@ export default async function WarehouseProductPage({
         </p>
 
         {pinError && (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            {pinError}
-          </p>
+          <div className="mt-3">
+            <Alert tone="error">{pinError}</Alert>
+          </div>
         )}
       </div>
 

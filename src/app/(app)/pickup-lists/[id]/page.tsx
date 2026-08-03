@@ -13,10 +13,9 @@ import {
   markItemPickedAction,
   completePickupListAction,
 } from "@/lib/actions/pickup-list-actions";
-
-const inputClass =
-  "w-full rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800";
-const labelClass = "mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300";
+import { inputClass, labelClass } from "@/lib/form-styles";
+import { Alert } from "@/components/Alert";
+import { StatusBadge } from "@/components/StatusBadge";
 
 const STATUS_LABELS: Record<string, string> = {
   UTKAST: "Utkast",
@@ -88,20 +87,18 @@ export default async function PickupListDetailPage({
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
             Hämtlista #{list.id}
           </h1>
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-            {STATUS_LABELS[list.status]}
-          </span>
+          <StatusBadge tone="neutral">{STATUS_LABELS[list.status]}</StatusBadge>
         </div>
 
         {pinError && (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            {pinError}
-          </p>
+          <div className="mt-3">
+            <Alert tone="error">{pinError}</Alert>
+          </div>
         )}
         {error === "alla-rader-maste-hanteras" && (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            Alla rader måste markeras som hämtade innan listan kan slutföras.
-          </p>
+          <div className="mt-3">
+            <Alert tone="error">Alla rader måste markeras som hämtade innan listan kan slutföras.</Alert>
+          </div>
         )}
       </div>
 
@@ -132,15 +129,9 @@ export default async function PickupListDetailPage({
                 <span className="flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-50">
                   {item.product.name}
                   {isPicking && (
-                    <span
-                      className={
-                        item.pickedAt
-                          ? "rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300"
-                          : "rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                      }
-                    >
+                    <StatusBadge tone={item.pickedAt ? "success" : "warning"}>
                       {item.pickedAt ? "Hämtad" : "Ej hämtad än"}
-                    </span>
+                    </StatusBadge>
                   )}
                 </span>
                 {isDraft && (
@@ -280,10 +271,10 @@ export default async function PickupListDetailPage({
             Slutför hämtlista
           </h2>
           {!allItemsPicked && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+            <Alert tone="warning">
               ⚠️ Knappen nedan är inaktiverad tills alla rader ovan är markerade &quot;Hämtad&quot;.
               Klicka &quot;Markera rad som hämtad&quot; på varje produkt först.
-            </p>
+            </Alert>
           )}
           <form action={completePickupListAction.bind(null, list.id)} className="space-y-3">
             <StaffPinFields staffMembers={staffMembers} />

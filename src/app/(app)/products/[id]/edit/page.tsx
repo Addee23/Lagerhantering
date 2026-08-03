@@ -6,10 +6,8 @@ import {
   createSupplierProductAction,
   deleteSupplierProductAction,
 } from "@/lib/actions/supplier-product-actions";
-
-const inputClass =
-  "w-full rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800";
-const labelClass = "mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300";
+import { inputClass, labelClass } from "@/lib/form-styles";
+import { Alert } from "@/components/Alert";
 
 export default async function EditProductPage({
   params,
@@ -67,9 +65,9 @@ export default async function EditProductPage({
         </div>
 
         {saved === "true" && (
-          <p className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
-            Sparat.
-          </p>
+          <div className="mb-4">
+            <Alert tone="success">Sparat.</Alert>
+          </div>
         )}
 
         <form action={updateAction} className="space-y-4">
@@ -184,9 +182,7 @@ export default async function EditProductPage({
         </p>
 
         {error === "leverantor-redan-kopplad" && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            Produkten är redan kopplad till den leverantören.
-          </p>
+          <Alert tone="error">Produkten är redan kopplad till den leverantören.</Alert>
         )}
 
         <ul className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">

@@ -2,10 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { updateSupplierAction } from "@/lib/actions/supplier-actions";
-
-const inputClass =
-  "w-full rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800";
-const labelClass = "mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300";
+import { inputClass, labelClass } from "@/lib/form-styles";
 
 export default async function EditSupplierPage({
   params,

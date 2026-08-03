@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createCategoryAction, toggleCategoryActiveAction } from "@/lib/actions/category-actions";
+import { Alert } from "@/components/Alert";
 
 export default async function CategoriesPage({
   searchParams,
@@ -28,11 +29,7 @@ export default async function CategoriesPage({
         </button>
       </form>
 
-      {error === "finns-redan" && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          Det finns redan en kategori med det namnet.
-        </p>
-      )}
+      {error === "finns-redan" && <Alert tone="error">Det finns redan en kategori med det namnet.</Alert>}
 
       <ul className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
         {categories.map((category) => (

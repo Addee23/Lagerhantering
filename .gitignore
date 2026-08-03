@@ -46,3 +46,6 @@ docs/dagsplan.md
 docs/loggbok-lia2.md
 
 /src/generated/prisma
+
+# Uppladdade filer (skadebilder, leveransdokument) - lokala, inte i Git
+/public/uploads

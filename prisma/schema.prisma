@@ -48,6 +48,7 @@ model StaffMember {
   activityLogs         ActivityLog[]
   stockMovements       StockMovement[]
   completedPickupLists PickupList[]
+  approvedDeliveries   Delivery[]
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
@@ -104,6 +105,7 @@ model Supplier {
   createdAt              DateTime @default(now())
 
   supplierProducts SupplierProduct[]
+  deliveries       Delivery[]
 }
 
 // En produkt använder alltid den fasta enheten flak/pall
@@ -128,6 +130,7 @@ model Product {
   stockBatches     StockBatch[]
   stockMovements   StockMovement[]
   pickupListItems  PickupListItem[]
+  deliveryItems    DeliveryItem[]
 }
 
 // Kopplingen mellan en produkt och EN specifik leverantör
@@ -222,4 +225,98 @@ model PickupListItem {
   isPartial         Boolean    @default(false)
   comment           String?
   pickedAt          DateTime?
+}
+
+// Fas 5 - Manuell inleverans (skills/delivery-and-ai-rules.md).
+// AI-tolkning (Fas 6) fyller i samma tabeller senare - Fas 5 bygger bara
+// det manuella flödet, så productId är obligatoriskt (personalen väljer
+// alltid en befintlig produkt direkt, ingen "okopplad rad" ännu).
+enum DeliveryStatus {
+  UTKAST
+  GODKAND
+}
+
+model Delivery {
+  id            Int            @id @default(autoincrement())
+  supplierId    Int
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  deliveryDate  DateTime?
+  orderNumber   String?
+  invoiceNumber String?
+  comment       String?
+  status        DeliveryStatus @default(UTKAST)
+  createdAt     DateTime       @default(now())
+  approvedAt    DateTime?
+
+  approvedByStaffMemberId Int?
+  approvedByStaffMember   StaffMember? @relation(fields: [approvedByStaffMemberId], references: [id])
+
+  items     DeliveryItem[]
+  documents DeliveryDocument[]
+}
+
+// Det uppladdade originaldokumentet (faktura/följesedel) - bara sparat som
+// bilaga i Fas 5, AI läser INTE innehållet förrän Fas 6.
+model DeliveryDocument {
+  id         Int      @id @default(autoincrement())
+  deliveryId Int
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  filePath   String
+  fileName   String
+  createdAt  DateTime @default(now())
+}
+
+model DeliveryItem {
+  id                  Int       @id @default(autoincrement())
+  deliveryId          Int
+  delivery            Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  productId           Int
+  product             Product   @relation(fields: [productId], references: [id])
+  documentedQuantity  Int
+  receivedQuantity    Int?
+  expiryDate          DateTime?
+  // "Markera rad som klar" (skills, 13.1).
+  confirmedOk         Boolean   @default(false)
+  // Hantering av kort bäst före-datum vid inleverans (skills/expiry-rules.md, 15.2).
+  shortExpiryHandled  Boolean   @default(false)
+  shortExpiryDecision String?
+  comment             String?
+  createdAt           DateTime  @default(now())
+
+  issues DeliveryIssue[]
+}
+
+enum DeliveryIssueType {
+  SAKNAS_HELT
+  FARRE_MOTTAGNA
+  FLER_MOTTAGNA
+  EJ_PA_FAKTURA
+  FEL_PRODUKT
+  SKADAD
+  KORT_BAST_FORE
+  FELAKTIGT_PRIS
+  ANNAN
+}
+
+model DeliveryIssue {
+  id              Int               @id @default(autoincrement())
+  deliveryItemId  Int
+  deliveryItem    DeliveryItem      @relation(fields: [deliveryItemId], references: [id], onDelete: Cascade)
+  type            DeliveryIssueType
+  comment         String?
+  // Fält specifika för skadade varor (skills, 14. Skadade produkter).
+  damagedQuantity Int?
+  discarded       Boolean?
+  wantedAction    String?
+  createdAt       DateTime          @default(now())
+
+  images DamageImage[]
+}
+
+model DamageImage {
+  id              Int           @id @default(autoincrement())
+  deliveryIssueId Int
+  deliveryIssue   DeliveryIssue @relation(fields: [deliveryIssueId], references: [id], onDelete: Cascade)
+  filePath        String
+  createdAt       DateTime      @default(now())
 }

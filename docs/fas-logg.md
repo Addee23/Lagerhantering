@@ -258,3 +258,52 @@ lagersaldot minskade rätt och att historiken visar uttaget kopplat till hämtli
 avbryt-flödet).
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 5 (2026-08-03) – Manuell inleverans
+
+**Vad byggdes:**
+- `Delivery`/`DeliveryItem`/`DeliveryIssue`/`DamageImage`/`DeliveryDocument` - skapa leverans,
+  välja leverantör, lägga till rader med dokumenterat/mottaget antal och bäst före-datum.
+- Riktig filuppladdning (skadebilder + leveransdokument) till `public/uploads/`, med
+  storleks-/filtypsvalidering.
+- Avvikelser per rad (9 typer enligt projektplanen, bl.a. skadad vara med antal/kasserad/önskad
+  åtgärd + bild), "Markera rad som klar" och "Markera alla rader utan avvikelse som klara".
+- Kort bäst före-hantering vid inleverans (skills/expiry-rules.md, 15.2): fyra val, där
+  "Acceptera leveransen" kräver PIN och loggas.
+- Godkännande-gate: blockerar om rader är obehandlade, mottaget antal saknas, eller kort bäst
+  före inte är hanterat. Godkännande (PIN) skapar `StockBatch`/`StockMovement` per rad och
+  `ActivityLog` - lagret uppdateras först här, aldrig innan.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (Delivery + 4 relaterade modeller) + migrering
+- `src/lib/file-upload.ts`, `src/lib/actions/delivery-actions.ts`
+- `src/app/(app)/deliveries/{page,new/page,[id]/page}.tsx`
+
+**Verifiering (på begäran, utöver vanlig webbläsartest):**
+Byggde ett tillfälligt Node-skript som körde hela flödet direkt mot databasen (skapa leverans,
+4 rader, avvikelser inkl. riktig bilduppladdning, fel/rätt PIN, för-tidigt och korrekt
+godkännande, dubbelgodkännande) - 20/20 kontroller godkända. Hittade och fixade en verklig bugg
+på köpet: att lösa en kort-bäst-före-varning markerade inte raden som klar automatiskt, vilket
+tvingade fram ett extra, förvirrande klick. Skriptet togs bort efter verifieringen (var bara ett
+tillfälligt QA-verktyg, inte del av appen).
+
+**Kodgranskning/optimering (på begäran):**
+- Bugg: filuppladdning kraschade med ett ohanterat serverfel vid fel filtyp/för stor fil - nu
+  fångas felet och visas som ett vanligt felmeddelande.
+- Bröt ut duplicerad `inputClass`/`labelClass` (8 filer) till `src/lib/form-styles.ts`.
+- Bröt ut duplicerad badge-/felruta-styling (~15 ställen, 6 filer) till nya
+  `src/components/Alert.tsx` och `src/components/StatusBadge.tsx`.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- "Lägg till i reklamationen" skapar bara en avvikelse-post - ingen riktig `Complaint`-post
+  eller mejlutkast än, det byggs i Fas 9.
+- Filer sparas lokalt på disk (`public/uploads`), inte i molnlagring - tillräckligt för
+  projektets skala.
+
+**Testresultat:** OK - webbläsartest av användaren (skapa leverans, rader, avvikelser, bilder,
+kort bäst före, godkännande, lageruppdatering) + skriptbaserad totalverifiering (20/20) +
+kodgranskning med en bugg hittad och fixad.
+
+**Godkänt att gå vidare:** Ja
