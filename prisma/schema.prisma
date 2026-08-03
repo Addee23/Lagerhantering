@@ -45,8 +45,9 @@ model StaffMember {
   failedPinAttempts Int       @default(0)
   pinLockedUntil    DateTime?
 
-  activityLogs   ActivityLog[]
-  stockMovements StockMovement[]
+  activityLogs         ActivityLog[]
+  stockMovements       StockMovement[]
+  completedPickupLists PickupList[]
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
@@ -126,6 +127,7 @@ model Product {
   supplierProducts SupplierProduct[]
   stockBatches     StockBatch[]
   stockMovements   StockMovement[]
+  pickupListItems  PickupListItem[]
 }
 
 // Kopplingen mellan en produkt och EN specifik leverantör
@@ -180,4 +182,44 @@ model StockMovement {
   staffMemberId Int?
   staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
   createdAt     DateTime     @default(now())
+}
+
+// Fas 4 - Hämtlistor, lager -> butik (skills/stock-and-pickup-rules.md).
+enum PickupListStatus {
+  UTKAST
+  KLAR_ATT_HAMTA
+  HAMTNING_PAGAR
+  SLUTFORD
+  AVBRUTEN
+}
+
+model PickupList {
+  id          Int              @id @default(autoincrement())
+  status      PickupListStatus @default(UTKAST)
+  comment     String?
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+
+  completedByStaffMemberId Int?
+  completedByStaffMember   StaffMember? @relation(fields: [completedByStaffMemberId], references: [id])
+
+  items PickupListItem[]
+}
+
+// En rad i hämtlistan för en specifik produkt. `requestedQuantity` är vad
+// som ska hämtas (reserveras virtuellt ur lagersaldot innan hämtning);
+// `actualQuantity` är vad som faktiskt hämtades (kan skilja sig om varan
+// saknades eller bara delvis fanns, skills, punkt 10.3).
+model PickupListItem {
+  id                Int        @id @default(autoincrement())
+  pickupListId      Int
+  pickupList        PickupList @relation(fields: [pickupListId], references: [id], onDelete: Cascade)
+  productId         Int
+  product           Product    @relation(fields: [productId], references: [id])
+  requestedQuantity Int
+  actualQuantity    Int?
+  isMissing         Boolean    @default(false)
+  isPartial         Boolean    @default(false)
+  comment           String?
+  pickedAt          DateTime?
 }

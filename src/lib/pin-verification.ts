@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
 // Delad kärnlogik för PIN-kontroll (skills/authentication-and-pin.md).
@@ -56,4 +57,21 @@ export async function checkStaffPin(staffMemberId: number, pin: string): Promise
   });
 
   return { ok: true };
+}
+
+/** Skickar tillbaka användaren till `path` med ett läsbart PIN-felmeddelande i query-strängen. */
+export function redirectWithPinError(
+  path: string,
+  result: { locked: boolean; message?: string; secondsRemaining?: number },
+): never {
+  const params = new URLSearchParams();
+  if (result.locked) {
+    params.set(
+      "pinError",
+      `Låst i ${result.secondsRemaining} sekunder efter för många felaktiga försök.`,
+    );
+  } else {
+    params.set("pinError", result.message ?? "Fel PIN-kod.");
+  }
+  redirect(`${path}?${params.toString()}`);
 }

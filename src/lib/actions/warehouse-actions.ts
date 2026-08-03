@@ -3,17 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { checkStaffPin } from "@/lib/pin-verification";
-
-function pinErrorRedirect(path: string, result: { locked: boolean; message?: string; secondsRemaining?: number }): never {
-  const params = new URLSearchParams();
-  if (result.locked) {
-    params.set("pinError", `Låst i ${result.secondsRemaining} sekunder efter för många felaktiga försök.`);
-  } else {
-    params.set("pinError", result.message ?? "Fel PIN-kod.");
-  }
-  redirect(`${path}?${params.toString()}`);
-}
+import { checkStaffPin, redirectWithPinError } from "@/lib/pin-verification";
 
 // skills/stock-and-pickup-rules.md: manuella lagerkorrigeringar och
 // kassationer kräver PIN och skapar en ny loggrad - historiken skrivs
@@ -32,7 +22,7 @@ export async function receiveStockAction(productId: number, formData: FormData):
 
   const pinResult = await checkStaffPin(staffMemberId, pin);
   if (!pinResult.ok) {
-    pinErrorRedirect(path, pinResult);
+    redirectWithPinError(path, pinResult);
   }
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
@@ -89,7 +79,7 @@ export async function correctStockBatchAction(
 
   const pinResult = await checkStaffPin(staffMemberId, pin);
   if (!pinResult.ok) {
-    pinErrorRedirect(path, pinResult);
+    redirectWithPinError(path, pinResult);
   }
 
   const [batch, product] = await Promise.all([
@@ -150,7 +140,7 @@ export async function discardStockBatchAction(
 
   const pinResult = await checkStaffPin(staffMemberId, pin);
   if (!pinResult.ok) {
-    pinErrorRedirect(path, pinResult);
+    redirectWithPinError(path, pinResult);
   }
 
   const [batch, product] = await Promise.all([

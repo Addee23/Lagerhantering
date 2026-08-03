@@ -210,3 +210,51 @@ saldo-varningen visas, korrigering och kassation fungerar och loggas i historike
 avvisas utan att spara, kassation kan inte överstiga aktuellt antal.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 4 (2026-08-01 till 2026-08-03) – Hämtlistor (lager → butik)
+
+**Vad byggdes:**
+- `PickupList`/`PickupListItem` med statusflödet **Utkast → Klar att hämta → Hämtning pågår →
+  Slutförd** (plus Avbruten), som en riktig Prisma `enum`.
+- Skapa hämtlista, lägga till flera produkter med antal, kommentar till listan.
+- Virtuell reservation (`src/lib/stock.ts`, `getAvailableStock`): tillgängligt saldo = totalt
+  saldo minus vad som redan är begärt i andra aktiva hämtlistor - inget låses fysiskt förrän
+  listan slutförs.
+- Hämtningsvy: markera varje rad som hämtad med faktiskt antal, "saknades helt" eller "bara
+  delvis" - status byter automatiskt till "Hämtning pågår" vid första hanterade raden.
+- Slutförande (PIN-skyddat): drar lagersaldo enligt **FEFO** (first expire, first out - partier
+  utan bäst före-datum plockas sist), skriver `StockMovement` per påverkat parti samt en
+  `ActivityLog`-post, sparar vem som slutförde och när.
+- Avbryt-flöde för hela listan.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (PickupList, PickupListItem, PickupListStatus) + migrering
+- `src/lib/stock.ts`, `src/lib/actions/pickup-list-actions.ts`
+- `src/app/(app)/pickup-lists/page.tsx`, `src/app/(app)/pickup-lists/[id]/page.tsx`
+- `src/lib/pin-verification.ts` (ny delad `redirectWithPinError`, återanvänds nu av tre
+  actions-filer)
+
+**Vad du lärde dig idag:**
+- Skillnaden mellan `$transaction([...])` (oberoende operationer) och `$transaction(async (tx) =>
+  {...})` (steg som beror på varandra, t.ex. läsa ett lagerpartis antal innan man drar ifrån det).
+- Varför man räknar ut tillgängligt saldo "live" istället för att fysiskt låsa lagerrader när en
+  hämtlista skapas.
+- FEFO-principen (first expire, first out) och hur den implementeras som en sortering i
+  applikationskoden istället för i databasfrågan.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen streckkodsskanning vid hämtning än (kameran) - manuell inmatning fungerar, skanning är en
+  senare förbättring.
+- Bäst före-information "förs över" till butiken bara som en textreferens i loggen - en riktig
+  butiks-sida (ExpiryRecord) byggs i Fas 7.
+- Om man skulle hämta mer än det virtuellt reserverade saldot tillåter systemet det ändå (ingen
+  hård spärr) - en medveten avvägning för att inte blockera personalen i onödan.
+
+**Testresultat:** OK — full genomgång i webbläsaren över tre dagar (skapa lista, lägga till/ta
+bort produkter, klarmarkera, hämta rader inklusive avvikelser, slutföra med PIN, verifierat att
+lagersaldot minskade rätt och att historiken visar uttaget kopplat till hämtlistan, samt
+avbryt-flödet).
+
+**Godkänt att gå vidare:** Ja
