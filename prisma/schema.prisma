@@ -236,17 +236,26 @@ enum DeliveryStatus {
   GODKAND
 }
 
+enum DeliverySource {
+  MANUELL
+  AI
+}
+
 model Delivery {
-  id            Int            @id @default(autoincrement())
-  supplierId    Int
-  supplier      Supplier       @relation(fields: [supplierId], references: [id])
-  deliveryDate  DateTime?
-  orderNumber   String?
-  invoiceNumber String?
-  comment       String?
-  status        DeliveryStatus @default(UTKAST)
-  createdAt     DateTime       @default(now())
-  approvedAt    DateTime?
+  id              Int            @id @default(autoincrement())
+  // Nullable: en AI-tolkad leverans kan sakna en igenkänd leverantör tills
+  // personalen skapar/kopplar en (skills/delivery-and-ai-rules.md, 8.1).
+  supplierId      Int?
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  rawSupplierName String?
+  source          DeliverySource @default(MANUELL)
+  deliveryDate    DateTime?
+  orderNumber     String?
+  invoiceNumber   String?
+  comment         String?
+  status          DeliveryStatus @default(UTKAST)
+  createdAt       DateTime       @default(now())
+  approvedAt      DateTime?
 
   approvedByStaffMemberId Int?
   approvedByStaffMember   StaffMember? @relation(fields: [approvedByStaffMemberId], references: [id])
@@ -255,33 +264,58 @@ model Delivery {
   documents DeliveryDocument[]
 }
 
-// Det uppladdade originaldokumentet (faktura/följesedel) - bara sparat som
-// bilaga i Fas 5, AI läser INTE innehållet förrän Fas 6.
+// Det uppladdade originaldokumentet (faktura/följesedel). Fas 6 lägger till
+// AI-tolkning av innehållet - originalet sparas alltid orört.
 model DeliveryDocument {
-  id         Int      @id @default(autoincrement())
-  deliveryId Int
-  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  filePath   String
-  fileName   String
-  createdAt  DateTime @default(now())
+  id            Int       @id @default(autoincrement())
+  deliveryId    Int
+  delivery      Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  filePath      String
+  fileName      String
+  createdAt     DateTime  @default(now())
+  aiAnalyzedAt  DateTime?
+  // Sparar AI:ns fulla svar för spårbarhet (skills/delivery-and-ai-rules.md:
+  // originaldokumentet och tolkningen ska gå att granska i efterhand).
+  aiRawResponse Json?
+}
+
+// skills/delivery-and-ai-rules.md, 12.5: hur säker produktmatchningen är.
+enum DeliveryItemMatchStatus {
+  MATCHED
+  SUGGESTED
+  UNMATCHED
 }
 
 model DeliveryItem {
-  id                  Int       @id @default(autoincrement())
-  deliveryId          Int
-  delivery            Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-  productId           Int
-  product             Product   @relation(fields: [productId], references: [id])
-  documentedQuantity  Int
-  receivedQuantity    Int?
-  expiryDate          DateTime?
+  id                    Int                     @id @default(autoincrement())
+  deliveryId            Int
+  delivery              Delivery                @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  // Nullable: en AI-tolkad rad som inte kunde matchas mot en produkt ska
+  // ALDRIG försvinna (skills/business-rules.md, punkt 8) - den finns kvar
+  // med productId=null tills personalen kopplar eller skapar en produkt.
+  productId             Int?
+  product               Product?                @relation(fields: [productId], references: [id])
+  matchStatus           DeliveryItemMatchStatus @default(MATCHED)
+  // Rådata från dokumentet/AI:n - används för visning och för att förifylla
+  // "Skapa produkt"-formuläret (skills, 12.7).
+  rawProductName        String?
+  supplierArticleNumber String?
+  rawBarcode            String?
+  // Per-fält säkerhetsnivå från AI:n, t.ex. {"quantity": "hog", "expiryDate": "lag"}.
+  fieldConfidence       Json?
+  // Nullable: AI:n får aldrig hitta på ett antal den inte kunde läsa av
+  // (skills/delivery-and-ai-rules.md) - manuell inleverans fyller alltid i
+  // detta, men en AI-tolkad rad kan lämna det tomt tills personalen anger det.
+  documentedQuantity    Int?
+  receivedQuantity      Int?
+  expiryDate            DateTime?
   // "Markera rad som klar" (skills, 13.1).
-  confirmedOk         Boolean   @default(false)
+  confirmedOk           Boolean                 @default(false)
   // Hantering av kort bäst före-datum vid inleverans (skills/expiry-rules.md, 15.2).
-  shortExpiryHandled  Boolean   @default(false)
-  shortExpiryDecision String?
-  comment             String?
-  createdAt           DateTime  @default(now())
+  shortExpiryHandled    Boolean                 @default(false)
+  shortExpiryDecision   String?
+  comment               String?
+  createdAt             DateTime                @default(now())
 
   issues DeliveryIssue[]
 }

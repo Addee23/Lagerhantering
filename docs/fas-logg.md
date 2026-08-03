@@ -307,3 +307,82 @@ kort bäst före, godkännande, lageruppdatering) + skriptbaserad totalverifieri
 kodgranskning med en bugg hittad och fixad.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 6 (2026-08-03) – AI-tolkning av leveransdokument
+
+**Vad byggdes:**
+- `analyzeDeliveryDocument()` (OpenAI Responses API, `gpt-5.4-mini`, strikt JSON-schema): läser en
+  uppladdad faktura/följesedel/orderbekräftelse (PDF eller bild) och föreslår leverantör,
+  order-/fakturanummer, datum och produktrader (namn, artikelnummer, streckkod, antal, bäst
+  före-datum, batchnummer, kommentar) - hittar aldrig på ett värde, sätter null när informationen
+  saknas (skills/delivery-and-ai-rules.md).
+- Matchningslogik (`src/lib/ai/match-product.ts`) enligt prioritetsordningen i projektplanen 12.5:
+  sparad leverantörskoppling → artikelnummer → streckkod → exakt namn → liknande namn → omatchad.
+  Varje rad får en `matchStatus` (Kopplad/Föreslagen/Ej kopplad) - en rad försvinner aldrig även om
+  den inte kan matchas.
+- Ny leverantör upptäcks automatiskt från dokumentet och kan registreras eller kopplas till en
+  befintlig leverantör direkt på leveranssidan innan godkännande.
+- UI för att lösa "Föreslagen koppling" (bekräfta eller koppla om) och "Ej kopplad" (koppla till
+  befintlig produkt eller skapa ny, förifylld från dokumentraden) per rad.
+- Godkännande-gaten (samma `approveDeliveryAction` som den manuella leveransen) utökad: kräver nu
+  även att leverantör och alla produkter är kopplade innan lagret får uppdateras.
+- Visning av AI:ns säkerhetsnivå per rad (gul varningstext) när tolkningen är osäker/okänd, så
+  personalen vet vilka rader som behöver extra kontroll (projektplanen 12.4).
+
+**Berörda filer:**
+- `prisma/schema.prisma` (nullbara `Delivery.supplierId`/`DeliveryItem.productId`, `DeliverySource`,
+  `DeliveryItemMatchStatus`, `rawSupplierName`/`rawProductName`/`fieldConfidence` m.fl.) + tre
+  migreringar
+- `src/lib/ai/analyze-delivery-document.ts`, `src/lib/ai/match-product.ts`
+- `src/lib/actions/ai-delivery-actions.ts`
+- `src/lib/product-duplicates.ts` (utbruten från `product-actions.ts` för återanvändning)
+- `src/app/(app)/deliveries/upload/page.tsx`, `src/app/(app)/deliveries/[id]/page.tsx`,
+  `src/app/(app)/deliveries/page.tsx`
+- `src/components/FileInput.tsx` (ny), `next.config.ts`, `src/app/globals.css`
+
+**Vad du lärde dig idag:**
+- Skillnaden mellan API-betalning (platform.openai.com, pay-as-you-go) och en ChatGPT
+  Plus-prenumeration - helt separata system, ingen automatisk återkommande dragning utan att
+  "auto-recharge" aktiveras uttryckligen.
+- Att strikt JSON-schema (`strict: true` i Responses API) tvingar modellen att svara i exakt den
+  form appen förväntar sig, istället för att behöva tolka fritext.
+- Varför delade hjälpfunktioner (t.ex. `findPossibleDuplicates`) måste ligga i en vanlig fil, inte
+  i en `"use server"`-fil - annars blir de av misstag en anropbar Server Action.
+- Att Next.js Server Actions har en egen kroppsstorlek-gräns (1 MB som standard) helt separat från
+  applikationens egen filstorlekskontroll, och att den måste höjas separat
+  (`experimental.serverActions.bodySizeLimit`) när man tillåter större filer.
+- Att webbläsarens filväljartext ("Choose File") styrs av webbläsaren/OS, inte sidans språk, och
+  att en gömd `<input>` + en `<label>`-knapp är standardlösningen för att få eget språk där.
+
+**Kodgranskning (på begäran, innan godkännande):**
+- Bugg: tomt/mycket kort produktnamn matchade i praktiken vilken produkt som helst
+  (`contains: ""`) - nu krävs minst 3 tecken innan namn-matchning körs.
+- Bugg: AI:n kunde i teorin returnera ett decimaltal eller negativt antal, vilket hade kraschat
+  mot en Int-kolumn i databasen - nu städas antalet (`sanitizeQuantity`) innan det sparas.
+- Bugg: godkännande av en leverans utan rader, eller utan kopplad leverantör, gav bara ett tyst
+  no-op utan förklaring - ersatt med tydliga felmeddelanden.
+- Brist: "Skapa produkt" i AI-flödet saknade den dubblettkontroll som redan fanns i den manuella
+  produktsidan sedan Fas 2 - kontrollen bröts ut till en delad fil och återanvänds nu av båda.
+- Förenkling: tog bort en gissning av MIME-typ från filändelsen till förmån för webbläsarens egen
+  (redan validerade) `file.type`.
+- Brist: AI:ns säkerhetsnivå per rad sparades men visades aldrig i gränssnittet - tillagd som en
+  varningstext på osäkra rader.
+- `npx tsc --noEmit` och `npm run lint` gröna efter samtliga fixar.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen egentlig kostnads-/timeout-gräns på AI-anropet än - för projektets skala (enstaka dokument,
+  manuellt uppladdade) bedöms det inte som ett problem nu.
+- "Liknande namn"-matchningen är fortfarande en enkel `contains`-jämförelse, inte riktig
+  fuzzy-matchning (samma medvetna avvägning som i Fas 2).
+- Reklamationshantering av AI-tolkade avvikelser byggs fullt ut i Fas 9, precis som för den
+  manuella leveransen.
+
+**Testresultat:** OK - testat med ett riktigt leveransdokument (skarp faktura) via webbläsaren:
+dokument tolkat, leverantör och produktrader föreslagna, matchning/koppling fungerade, ny
+leverantör kunde registreras, säkerhetsvarning visades korrekt, godkännande uppdaterade lagret.
+Under testet hittades och åtgärdades även två skarpa buggar: Server Actions kroppsstorlek-gräns
+(1 MB) som stoppade större filer, och webbläsarens engelska filväljartext.
+
+**Godkänt att gå vidare:** Ja

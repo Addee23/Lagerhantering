@@ -92,7 +92,11 @@ export async function markAllOkAction(deliveryId: number): Promise<void> {
     include: { issues: true },
   });
 
-  const idsWithoutIssues = items.filter((item) => item.issues.length === 0).map((item) => item.id);
+  // Rader utan produktkoppling (AI-tolkade, ej matchade/bekräftade) räknas
+  // inte som klara även om de saknar avvikelser - de måste kopplas först.
+  const idsWithoutIssues = items
+    .filter((item) => item.issues.length === 0 && item.productId != null)
+    .map((item) => item.id);
 
   await prisma.deliveryItem.updateMany({
     where: { id: { in: idsWithoutIssues } },
@@ -173,6 +177,7 @@ export async function resolveShortExpiryAction(
       where: { id: itemId },
       include: { product: true },
     });
+    const productLabel = item?.product?.name ?? item?.rawProductName ?? "okänd produkt";
 
     await prisma.$transaction([
       prisma.deliveryItem.update({
@@ -184,7 +189,7 @@ export async function resolveShortExpiryAction(
       prisma.activityLog.create({
         data: {
           eventType: "short_expiry_accepted",
-          description: `Accepterade kort bäst före-datum för "${item?.product.name}" i leverans #${deliveryId}.`,
+          description: `Accepterade kort bäst före-datum för "${productLabel}" i leverans #${deliveryId}.`,
           reason: comment ?? undefined,
           staffMemberId,
         },
@@ -229,12 +234,22 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
   });
   if (!delivery || delivery.status === "GODKAND") return;
 
-  if (delivery.items.length === 0) return;
+  if (delivery.items.length === 0) {
+    redirect(`${path}?error=${encodeURIComponent("Leveransen har inga rader att godkänna.")}`);
+  }
+  if (!delivery.supplierId) {
+    redirect(`${path}?error=leverantor-saknas`);
+  }
 
-  const threshold = delivery.supplier.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
+  const threshold = delivery.supplier?.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
   const now = Date.now();
 
   for (const item of delivery.items) {
+    // skills, 16: "Alla okopplade produkter har hanterats" - en AI-tolkad
+    // rad utan produkt kan aldrig godkännas som den är.
+    if (!item.productId) {
+      redirect(`${path}?error=produkt-ej-kopplad`);
+    }
     const isHandled = item.confirmedOk || item.issues.length > 0;
     if (!isHandled) {
       redirect(`${path}?error=obehandlade-rader`);
@@ -257,6 +272,10 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
 
   await prisma.$transaction(async (tx) => {
     for (const item of delivery.items) {
+      // Gate-kontrollen ovan garanterar redan att alla rader har en produkt,
+      // men vi kollar igen här som ett skyddsnät (och för TypeScript).
+      if (!item.productId) continue;
+
       const quantity = item.receivedQuantity ?? 0;
       if (quantity > 0) {
         const batch = await tx.stockBatch.create({
@@ -289,7 +308,7 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
     await tx.activityLog.create({
       data: {
         eventType: "delivery_approved",
-        description: `Godkände leverans #${deliveryId} från "${delivery.supplier.name}" (${
+        description: `Godkände leverans #${deliveryId} från "${delivery.supplier?.name ?? delivery.rawSupplierName ?? "okänd leverantör"}" (${
           delivery.items.length
         } rader${
           itemsWithIssues.length > 0

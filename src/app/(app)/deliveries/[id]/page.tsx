@@ -12,9 +12,17 @@ import {
   approveDeliveryAction,
   uploadDeliveryDocumentAction,
 } from "@/lib/actions/delivery-actions";
+import {
+  linkExistingSupplierAction,
+  createSupplierFromDeliveryAction,
+  linkDeliveryItemToProductAction,
+  confirmSuggestedMatchAction,
+  createProductFromDeliveryItemAction,
+} from "@/lib/actions/ai-delivery-actions";
 import { inputClass, labelClass } from "@/lib/form-styles";
 import { Alert } from "@/components/Alert";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FileInput } from "@/components/FileInput";
 
 const ISSUE_TYPE_LABELS: Record<string, string> = {
   SAKNAS_HELT: "Produkten saknas helt",
@@ -32,7 +40,30 @@ const ERROR_MESSAGES: Record<string, string> = {
   "obehandlade-rader": "Alla rader måste markeras som klara eller ha en avvikelse registrerad.",
   "mottaget-antal-saknas": "Mottaget antal saknas på en eller flera rader.",
   "bast-fore-ej-hanterat": "En rad har ett kort bäst före-datum som inte är hanterat än.",
+  "leverantor-saknas": "Leverantören måste registreras eller kopplas innan leveransen kan godkännas.",
+  "produkt-ej-kopplad": "En eller flera rader saknar fortfarande en kopplad produkt.",
 };
+
+const MATCH_STATUS_LABELS: Record<string, string> = {
+  MATCHED: "Kopplad till produkt",
+  SUGGESTED: "Föreslagen koppling",
+  UNMATCHED: "Ej kopplad till produkt",
+};
+
+// skills/delivery-and-ai-rules.md, 12.4: fält med låg säkerhet ska markeras
+// för manuell kontroll. fieldConfidence sparas som fri JSON (Prisma
+// JsonValue), så vi läser ut "overall" manuellt istället för att lita på
+// typen rakt av.
+const LOW_CONFIDENCE_LABELS: Record<string, string> = {
+  lag: "AI: Låg säkerhet - kontrollera raden",
+  okand: "AI: Kunde inte tolkas säkert - kontrollera raden",
+};
+
+function getLowConfidenceLabel(fieldConfidence: unknown): string | null {
+  if (!fieldConfidence || typeof fieldConfidence !== "object") return null;
+  const overall = (fieldConfidence as { overall?: unknown }).overall;
+  return typeof overall === "string" ? (LOW_CONFIDENCE_LABELS[overall] ?? null) : null;
+}
 
 const DEFAULT_SHORT_EXPIRY_DAYS = 90;
 
@@ -67,7 +98,7 @@ export default async function DeliveryDetailPage({
   const { error, pinError } = await searchParams;
   const deliveryId = Number(id);
 
-  const [delivery, staffMembers, products] = await Promise.all([
+  const [delivery, staffMembers, products, suppliers] = await Promise.all([
     prisma.delivery.findUnique({
       where: { id: deliveryId },
       include: {
@@ -79,6 +110,7 @@ export default async function DeliveryDetailPage({
     }),
     getActiveStaffMembers(),
     prisma.product.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
   if (!delivery) {
@@ -86,13 +118,14 @@ export default async function DeliveryDetailPage({
   }
 
   const isDraft = delivery.status === "UTKAST";
-  const threshold = delivery.supplier.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
+  const threshold = delivery.supplier?.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
 
   const itemViews = delivery.items.map((item) => getItemView(item, threshold));
 
   const allReady =
     delivery.items.length > 0 &&
-    itemViews.every((v) => v.isHandled && v.shortExpiryOk && v.receivedOk);
+    delivery.supplierId != null &&
+    itemViews.every((v) => v.item.productId != null && v.isHandled && v.shortExpiryOk && v.receivedOk);
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -103,17 +136,64 @@ export default async function DeliveryDetailPage({
 
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
-            Leverans #{delivery.id} – {delivery.supplier.name}
+            Leverans #{delivery.id} – {delivery.supplier?.name ?? delivery.rawSupplierName ?? "Okänd leverantör"}
           </h1>
-          <StatusBadge tone={delivery.status === "GODKAND" ? "success" : "neutral"}>
-            {delivery.status === "GODKAND" ? "Godkänd" : "Utkast"}
-          </StatusBadge>
+          <div className="flex items-center gap-2">
+            {delivery.source === "AI" && <StatusBadge tone="neutral">AI-tolkad</StatusBadge>}
+            <StatusBadge tone={delivery.status === "GODKAND" ? "success" : "neutral"}>
+              {delivery.status === "GODKAND" ? "Godkänd" : "Utkast"}
+            </StatusBadge>
+          </div>
         </div>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
           {delivery.deliveryDate && `Leveransdatum ${delivery.deliveryDate.toLocaleDateString("sv-SE")} · `}
           {delivery.orderNumber && `Order ${delivery.orderNumber} · `}
           {delivery.invoiceNumber && `Faktura ${delivery.invoiceNumber}`}
         </p>
+
+        {isDraft && !delivery.supplierId && (
+          <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
+            <p className="font-medium text-amber-800 dark:text-amber-300">
+              Leverantören är inte registrerad
+              {delivery.rawSupplierName && ` (AI läste namnet "${delivery.rawSupplierName}")`}.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <form
+                action={createSupplierFromDeliveryAction.bind(null, delivery.id)}
+                className="flex gap-2"
+              >
+                <input
+                  name="name"
+                  defaultValue={delivery.rawSupplierName ?? ""}
+                  placeholder="Leverantörens namn"
+                  required
+                  className={inputClass}
+                />
+                <button type="submit" className="whitespace-nowrap rounded-md border border-amber-400 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                  Skapa leverantör
+                </button>
+              </form>
+              {suppliers.length > 0 && (
+                <form
+                  action={linkExistingSupplierAction.bind(null, delivery.id)}
+                  className="flex gap-2"
+                >
+                  <select name="supplierId" required className={inputClass}>
+                    <option value="">Koppla till befintlig...</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" className="whitespace-nowrap rounded-md border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700">
+                    Koppla
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
         {pinError && (
           <div className="mt-3">
@@ -146,7 +226,7 @@ export default async function DeliveryDetailPage({
             action={uploadDeliveryDocumentAction.bind(null, delivery.id)}
             className="flex items-center gap-2"
           >
-            <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required className="text-sm" />
+            <FileInput name="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
             <button type="submit" className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700">
               Bifoga
             </button>
@@ -162,18 +242,111 @@ export default async function DeliveryDetailPage({
             <li key={item.id} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-neutral-900 dark:text-neutral-50">
-                  {item.product.name}
+                  {item.product?.name ?? item.rawProductName ?? "Okänd produkt"}
                 </span>
-                <StatusBadge
-                  tone={item.issues.length > 0 ? "error" : item.confirmedOk ? "success" : "warning"}
-                >
-                  {item.issues.length > 0 ? "Avvikelse" : item.confirmedOk ? "Klar" : "Behöver kontrolleras"}
-                </StatusBadge>
+                <div className="flex items-center gap-2">
+                  {item.matchStatus !== "MATCHED" && (
+                    <StatusBadge tone={item.matchStatus === "SUGGESTED" ? "warning" : "error"}>
+                      {MATCH_STATUS_LABELS[item.matchStatus]}
+                    </StatusBadge>
+                  )}
+                  <StatusBadge
+                    tone={item.issues.length > 0 ? "error" : item.confirmedOk ? "success" : "warning"}
+                  >
+                    {item.issues.length > 0 ? "Avvikelse" : item.confirmedOk ? "Klar" : "Behöver kontrolleras"}
+                  </StatusBadge>
+                </div>
               </div>
+              {getLowConfidenceLabel(item.fieldConfidence) && (
+                <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  {getLowConfidenceLabel(item.fieldConfidence)}
+                </p>
+              )}
               <p className="mt-1 text-xs text-neutral-400">
-                Dokumenterat: {item.documentedQuantity} · Mottaget: {item.receivedQuantity ?? "–"}
+                Dokumenterat: {item.documentedQuantity ?? "–"} · Mottaget: {item.receivedQuantity ?? "–"}
                 {item.expiryDate && ` · Bäst före ${item.expiryDate.toLocaleDateString("sv-SE")}`}
+                {item.supplierArticleNumber && ` · Art.nr ${item.supplierArticleNumber}`}
               </p>
+
+              {isDraft && item.matchStatus === "SUGGESTED" && (
+                <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
+                  <p className="text-amber-800 dark:text-amber-300">
+                    Föreslagen koppling till <strong>{item.product?.name}</strong> - stämmer det?
+                  </p>
+                  <div className="flex gap-2">
+                    <form action={confirmSuggestedMatchAction.bind(null, delivery.id, item.id)}>
+                      <button type="submit" className="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-300">
+                        Ja, bekräfta kopplingen
+                      </button>
+                    </form>
+                  </div>
+                  <details>
+                    <summary className="cursor-pointer text-amber-700 hover:underline dark:text-amber-400">
+                      Nej, koppla till en annan produkt
+                    </summary>
+                    <form
+                      action={linkDeliveryItemToProductAction.bind(null, delivery.id, item.id)}
+                      className="mt-2 flex gap-2"
+                    >
+                      <select name="productId" required className={inputClass}>
+                        <option value="">Välj produkt...</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit" className="whitespace-nowrap rounded-md border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700">
+                        Koppla
+                      </button>
+                    </form>
+                  </details>
+                </div>
+              )}
+
+              {isDraft && item.matchStatus === "UNMATCHED" && (
+                <div className="mt-3 space-y-3 rounded-md bg-red-50 p-3 text-sm dark:bg-red-950">
+                  <p className="font-medium text-red-800 dark:text-red-300">
+                    Ej kopplad till produkt{item.rawProductName && ` (dokumentet säger "${item.rawProductName}")`}
+                  </p>
+                  <form
+                    action={linkDeliveryItemToProductAction.bind(null, delivery.id, item.id)}
+                    className="flex gap-2"
+                  >
+                    <select name="productId" required className={inputClass}>
+                      <option value="">Sök/välj befintlig produkt...</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit" className="whitespace-nowrap rounded-md border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700">
+                      Koppla
+                    </button>
+                  </form>
+                  <details>
+                    <summary className="cursor-pointer text-red-700 hover:underline dark:text-red-400">
+                      Skapa ny produkt istället
+                    </summary>
+                    <form
+                      action={createProductFromDeliveryItemAction.bind(null, delivery.id, item.id)}
+                      className="mt-2 flex gap-2"
+                    >
+                      <input
+                        name="name"
+                        defaultValue={item.rawProductName ?? ""}
+                        placeholder="Produktnamn (Hela Rubbets eget namn)"
+                        required
+                        className={inputClass}
+                      />
+                      <button type="submit" className="whitespace-nowrap rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-700 dark:border-red-800 dark:text-red-400">
+                        Skapa produkt
+                      </button>
+                    </form>
+                  </details>
+                </div>
+              )}
 
               {isDraft && isShort && !shortExpiryOk && (
                 <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
@@ -240,7 +413,7 @@ export default async function DeliveryDetailPage({
 
               {isDraft && (
                 <div className="mt-3 flex items-center gap-4 text-sm">
-                  {!isHandled && (
+                  {!isHandled && item.productId != null && (
                     <form action={markItemConfirmedOkAction.bind(null, delivery.id, item.id)}>
                       <button type="submit" className="text-green-700 hover:underline dark:text-green-400">
                         Markera rad som klar
@@ -253,7 +426,6 @@ export default async function DeliveryDetailPage({
                     </summary>
                     <form
                       action={addDeliveryIssueAction.bind(null, delivery.id, item.id)}
-                      encType="multipart/form-data"
                       className="mt-2 space-y-2 rounded-md border border-neutral-200 p-3 dark:border-neutral-800"
                     >
                       <select name="type" required className={inputClass}>
@@ -286,7 +458,12 @@ export default async function DeliveryDetailPage({
                       </label>
                       <div>
                         <label className="mb-1 block text-xs text-neutral-500">Bild (om skada)</label>
-                        <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" className="text-sm" />
+                        <FileInput
+                          name="image"
+                          accept=".jpg,.jpeg,.png,.webp"
+                          buttonLabel="Välj bild"
+                          placeholder="Ingen bild vald"
+                        />
                       </div>
                       <button
                         type="submit"
