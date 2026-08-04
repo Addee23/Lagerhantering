@@ -506,3 +506,73 @@ leverantör, gruppering per leverantör fungerade, hela statusflödet (beställd
 testat, "Visa alla" visar historiken korrekt.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 9 (2026-08-04) – Reklamationsutkast, AI-mejl och SMTP
+
+**Vad byggdes:**
+- `Complaint`/`ComplaintItem`/`ComplaintEmail`/`EmailAttachment` (skills/complaint-and-email-rules.md).
+  Ett reklamationsutkast skapas **automatiskt** i `approveDeliveryAction` när en godkänd leverans
+  har avvikelser - en `ComplaintItem` per `DeliveryIssue`, med ett unikt reklamationsnummer
+  (`REK-2026-0001`). Länk till reklamationen visas direkt på leveranssidan.
+- `src/lib/ai/generate-complaint-email.ts`: AI:n (samma modell som Fas 6) föreslår ämne och
+  brödtext utifrån avvikelserna - hittar aldrig på information som inte finns i datan.
+- `/complaints` (lista) och `/complaints/[id]` (detalj): visar alla avvikelser inkl. skadebilder,
+  knappar för att skriva utkastet manuellt eller generera med AI, ett redigerbart formulär
+  (mottagare/kopia/ämne/text), och en PIN-skyddad sändningsknapp. Skadebilder bifogas automatiskt.
+- Blockering: leverantören måste ha en registrerad reklamationsadress (Fas 2-fältet) - annars
+  stoppas sändning helt med en tydlig länk till leverantörens redigeringssida
+  (skills/complaint-and-email-rules.md).
+- `src/lib/email.ts`: utgående mejl via SMTP (`nodemailer`), uppgifter i `.env`
+  (`SMTP_HOST`/`SMTP_PORT`/`SMTP_SECURE`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM`).
+- Statusflöde Utkast → Skickad, därefter manuell uppdatering (Väntar på svar/Krediterad/Ersatt/m.fl.)
+  tills IMAP-inläsningen i Fas 10 kan automatisera det utifrån leverantörens svar.
+- Bröt ut `ISSUE_TYPE_LABELS` (fanns bara lokalt på leveranssidan) till en delad fil
+  (`src/lib/issue-labels.ts`) så både leveranssidan och AI-mejlutkastet återanvänder samma
+  svenska text för avvikelsetyper.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (Complaint, ComplaintItem, ComplaintEmail, EmailAttachment) + två
+  migreringar
+- `src/lib/email.ts`, `src/lib/ai/generate-complaint-email.ts`, `src/lib/issue-labels.ts` (nya)
+- `src/lib/actions/complaint-actions.ts` (ny)
+- `src/lib/actions/delivery-actions.ts` (`approveDeliveryAction` skapar nu reklamationen)
+- `src/app/(app)/complaints/page.tsx`, `src/app/(app)/complaints/[id]/page.tsx` (nya)
+- `src/app/(app)/deliveries/[id]/page.tsx` (länk till reklamationen)
+- `.env` (SMTP-uppgifter, användarens riktiga Gmail-konto - aldrig committat)
+
+**Vad du lärde dig idag:**
+- Hur `formAction` på en enskild `<button>` kan skicka samma formulär till en ANNAN Server Action
+  än formulärets vanliga `action` - använt här så att "Spara utkast" och "Skicka" (PIN-skyddad)
+  kan dela samma fält utan att duplicera formuläret.
+- Varför ett unikt fält (`Complaint.deliveryId`, `ComplaintItem.deliveryIssueId`) i schemat är ett
+  starkare skydd mot dubbletter än att bara lita på applikationskoden.
+- Att mejl som skickas via rå SMTP (inte Gmails egna gränssnitt) ofta hamnar i skräpposten första
+  gångerna, särskilt om avsändarnamnet inte matchar innehållet - inget kodfel, en fråga om
+  avsändarens rykte/historik.
+
+**Kodgranskning (samma pass):**
+- Bugg: inget skydd mot dubbelskick av samma reklamationsmejl (dubbelklick/nätverksretry) - nu
+  kollas att det specifika utkastet fortfarande är osänt precis innan sändning.
+- Bugg: AI-anropet för mejlutkastet fångade inte fel (t.ex. saknad API-nyckel) - kraschade
+  istället för att visa ett läsbart felmeddelande. Nu omslutet av try/catch som Fas 6:s AI-anrop.
+- Rapporterat men inte fixat: "Generera om med AI" skriver över utkastet utan varning även om
+  personal redan redigerat manuellt. Statusfältet tillåter ändring även på avslutade/avbrutna
+  ärenden, till skillnad från hur sändning spärras för samma statusar.
+- `npx tsc --noEmit` och `npm run lint` gröna efter samtliga fixar.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen IMAP-inläsning av leverantörens svar än (Fas 10) - status uppdateras manuellt tills dess.
+- Reklamationsnumret genereras genom att räkna befintliga rader för året inom transaktionen -
+  skyddat mot dubbletter av `@unique`, men två godkännanden i exakt samma ögonblick hade i teorin
+  kunnat krascha den ena (extremt osannolikt i den här skalan, inte åtgärdat).
+- Manuell bilageuppladdning finns inte - bara skadebilder som redan finns på avvikelserna bifogas
+  automatiskt.
+
+**Testresultat:** OK - testat i webbläsaren av användaren med riktiga SMTP-uppgifter: leverans med
+avvikelse godkänd → reklamation skapad automatiskt → AI-utkast genererat → redigerat → skickat med
+PIN → mejlet togs emot (hamnade i skräpposten första gången, väntat given avsändarhistoriken, inte
+ett kodfel).
+
+**Godkänt att gå vidare:** Ja

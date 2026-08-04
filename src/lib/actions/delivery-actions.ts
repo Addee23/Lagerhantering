@@ -240,6 +240,10 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
   if (!delivery.supplierId) {
     redirect(`${path}?error=leverantor-saknas`);
   }
+  // Narrowad lokal konstant - `delivery.supplierId` som en fältaccess på ett
+  // fångat objekt hade inte hållit kvar TypeScripts null-koll inuti
+  // transaktionsstängningen längre ner.
+  const supplierId = delivery.supplierId;
 
   const threshold = delivery.supplier?.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
   const now = Date.now();
@@ -305,15 +309,40 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
     });
 
     const itemsWithIssues = delivery.items.filter((item) => item.issues.length > 0);
+
+    // skills/complaint-and-email-rules.md: reklamationsutkastet skapas
+    // AUTOMATISKT när en godkänd leverans har avvikelser - en ComplaintItem
+    // per DeliveryIssue. Bara ett utkast: inget mejl skickas här, det görs
+    // separat efter mänsklig granskning + PIN (Fas 9).
+    let complaintNumber: string | null = null;
+    if (itemsWithIssues.length > 0) {
+      const year = new Date().getFullYear();
+      const countThisYear = await tx.complaint.count({
+        where: { complaintNumber: { startsWith: `REK-${year}-` } },
+      });
+      complaintNumber = `REK-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+
+      await tx.complaint.create({
+        data: {
+          complaintNumber,
+          deliveryId,
+          supplierId,
+          items: {
+            create: itemsWithIssues.flatMap((item) =>
+              item.issues.map((issue) => ({ deliveryIssueId: issue.id })),
+            ),
+          },
+        },
+      });
+    }
+
     await tx.activityLog.create({
       data: {
         eventType: "delivery_approved",
         description: `Godkände leverans #${deliveryId} från "${delivery.supplier?.name ?? delivery.rawSupplierName ?? "okänd leverantör"}" (${
           delivery.items.length
         } rader${
-          itemsWithIssues.length > 0
-            ? `, ${itemsWithIssues.length} med avvikelse - reklamation hanteras i Fas 9`
-            : ""
+          complaintNumber ? `, ${itemsWithIssues.length} med avvikelse - reklamation ${complaintNumber} skapad` : ""
         }).`,
         staffMemberId,
       },
@@ -323,5 +352,6 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
   revalidatePath(path);
   revalidatePath("/deliveries");
   revalidatePath("/warehouse");
+  revalidatePath("/complaints");
   redirect(path);
 }

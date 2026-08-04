@@ -23,18 +23,7 @@ import { inputClass, labelClass } from "@/lib/form-styles";
 import { Alert } from "@/components/Alert";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FileInput } from "@/components/FileInput";
-
-const ISSUE_TYPE_LABELS: Record<string, string> = {
-  SAKNAS_HELT: "Produkten saknas helt",
-  FARRE_MOTTAGNA: "Färre mottagna än dokumenterat",
-  FLER_MOTTAGNA: "Fler mottagna än dokumenterat",
-  EJ_PA_FAKTURA: "Levererad men inte på fakturan",
-  FEL_PRODUKT: "Fel produkt levererad",
-  SKADAD: "Skadad vara",
-  KORT_BAST_FORE: "För kort bäst före-datum",
-  FELAKTIGT_PRIS: "Felaktigt pris/fakturaavvikelse",
-  ANNAN: "Annan avvikelse",
-};
+import { ISSUE_TYPE_LABELS } from "@/lib/issue-labels";
 
 const ERROR_MESSAGES: Record<string, string> = {
   "obehandlade-rader": "Alla rader måste markeras som klara eller ha en avvikelse registrerad.",
@@ -105,6 +94,7 @@ export default async function DeliveryDetailPage({
         supplier: true,
         documents: true,
         approvedByStaffMember: { select: { name: true } },
+        complaint: { select: { id: true, complaintNumber: true } },
         items: { include: { product: true, issues: { include: { images: true } } }, orderBy: { id: "asc" } },
       },
     }),
@@ -150,6 +140,14 @@ export default async function DeliveryDetailPage({
           {delivery.orderNumber && `Order ${delivery.orderNumber} · `}
           {delivery.invoiceNumber && `Faktura ${delivery.invoiceNumber}`}
         </p>
+
+        {delivery.complaint && (
+          <p className="mt-2 text-sm">
+            <Link href={`/complaints/${delivery.complaint.id}`} className="text-amber-700 hover:underline dark:text-amber-400">
+              Reklamation {delivery.complaint.complaintNumber} skapad från avvikelserna på den här leveransen →
+            </Link>
+          </p>
+        )}
 
         {isDraft && !delivery.supplierId && (
           <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">

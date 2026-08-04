@@ -50,6 +50,7 @@ model StaffMember {
   completedPickupLists PickupList[]
   approvedDeliveries   Delivery[]
   resolvedExpiryRecords ExpiryRecord[]
+  sentComplaintEmails  ComplaintEmail[]
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
@@ -108,6 +109,7 @@ model Supplier {
   supplierProducts SupplierProduct[]
   deliveries       Delivery[]
   orderListItems   OrderListItem[]
+  complaints       Complaint[]
 }
 
 // En produkt använder alltid den fasta enheten flak/pall
@@ -268,6 +270,7 @@ model Delivery {
 
   items     DeliveryItem[]
   documents DeliveryDocument[]
+  complaint Complaint?
 }
 
 // Det uppladdade originaldokumentet (faktura/följesedel). Fas 6 lägger till
@@ -350,7 +353,8 @@ model DeliveryIssue {
   wantedAction    String?
   createdAt       DateTime          @default(now())
 
-  images DamageImage[]
+  images        DamageImage[]
+  complaintItem ComplaintItem?
 }
 
 model DamageImage {
@@ -436,4 +440,78 @@ model OrderListItem {
   createdAt  DateTime           @default(now())
   orderedAt  DateTime?
   receivedAt DateTime?
+}
+
+// Fas 9 - Reklamationsutkast (skills/complaint-and-email-rules.md). Skapas
+// AUTOMATISKT när en godkänd leverans har avvikelser (en ComplaintItem per
+// DeliveryIssue) - men mejlet skickas ALDRIG automatiskt, bara efter att
+// personalen granskat, redigerat och PIN-bekräftat (skills/business-rules.md,
+// punkt 12). IMAP-inläsning av leverantörens svar byggs i Fas 10 - så länge
+// uppdateras status manuellt av personalen.
+enum ComplaintStatus {
+  UTKAST
+  SKICKAD
+  VANTAR_PA_SVAR
+  KREDITERAD
+  ERSATT
+  BEHOVER_KOMPLETTERAS
+  AVVISAD_AV_LEVERANTOR
+  AVSLUTAD
+  AVBRUTEN
+}
+
+model Complaint {
+  id              Int             @id @default(autoincrement())
+  // Unikt format REK-ÅÅÅÅ-NNNN (skills/complaint-and-email-rules.md).
+  complaintNumber String          @unique
+  deliveryId      Int             @unique
+  delivery        Delivery        @relation(fields: [deliveryId], references: [id])
+  supplierId      Int
+  supplier        Supplier        @relation(fields: [supplierId], references: [id])
+  status          ComplaintStatus @default(UTKAST)
+  createdAt       DateTime        @default(now())
+
+  items  ComplaintItem[]
+  emails ComplaintEmail[]
+}
+
+// En rad per avvikelse (DeliveryIssue) som samlas in i reklamationen.
+model ComplaintItem {
+  id              Int           @id @default(autoincrement())
+  complaintId     Int
+  complaint       Complaint     @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  deliveryIssueId Int           @unique
+  deliveryIssue   DeliveryIssue @relation(fields: [deliveryIssueId], references: [id])
+}
+
+// Ett mejl (utkast eller skickat) kopplat till reklamationen. Fas 9 bygger
+// bara utgående mejl - inkommande svar (IMAP) läggs till i Fas 10, men
+// modellen har redan plats för det (`direction`).
+model ComplaintEmail {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  direction   String    @default("utgaende")
+  toAddress   String
+  ccAddress   String?
+  subject     String
+  body        String    @db.Text
+  aiGenerated Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  // Null = fortfarande ett redigerbart utkast, inte skickat än.
+  sentAt      DateTime?
+
+  sentByStaffMemberId Int?
+  sentByStaffMember   StaffMember? @relation(fields: [sentByStaffMemberId], references: [id])
+
+  attachments EmailAttachment[]
+}
+
+model EmailAttachment {
+  id               Int            @id @default(autoincrement())
+  complaintEmailId Int
+  complaintEmail   ComplaintEmail @relation(fields: [complaintEmailId], references: [id], onDelete: Cascade)
+  filePath         String
+  fileName         String
+  createdAt        DateTime       @default(now())
 }
