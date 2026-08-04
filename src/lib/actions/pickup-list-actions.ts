@@ -106,8 +106,11 @@ async function deductStockFefo(
   quantityToDeduct: number,
   staffMemberId: number,
   reason: string,
-): Promise<void> {
+): Promise<{ expiryDate: Date | null; quantity: number }[]> {
   let remaining = quantityToDeduct;
+  // Vilka lagerpartier (och deras bäst före-datum) FEFO-uttaget faktiskt tog
+  // ifrån - används för att skapa rätt ExpiryRecord-poster i butiken (Fas 7).
+  const consumed: { expiryDate: Date | null; quantity: number }[] = [];
 
   const batches = await tx.stockBatch.findMany({
     where: { productId, quantity: { gt: 0 } },
@@ -140,8 +143,11 @@ async function deductStockFefo(
       },
     });
 
+    consumed.push({ expiryDate: batch.expiryDate, quantity: take });
     remaining -= take;
   }
+
+  return consumed;
 }
 
 // skills/stock-and-pickup-rules.md, 10.4: minska lagersaldot med faktiskt
@@ -173,7 +179,27 @@ export async function completePickupListAction(
     for (const item of list.items) {
       const quantity = item.actualQuantity ?? 0;
       if (quantity > 0) {
-        await deductStockFefo(tx, item.productId, quantity, staffMemberId, `Hämtlista #${pickupListId}`);
+        const consumed = await deductStockFefo(
+          tx,
+          item.productId,
+          quantity,
+          staffMemberId,
+          `Hämtlista #${pickupListId}`,
+        );
+
+        // skills/stock-and-pickup-rules.md: relevant bäst före-info förs
+        // över till butiken - en ExpiryRecord per lagerparti FEFO-uttaget
+        // faktiskt tog ifrån (Fas 7).
+        for (const portion of consumed) {
+          await tx.expiryRecord.create({
+            data: {
+              productId: item.productId,
+              expiryDate: portion.expiryDate,
+              quantityRemaining: portion.quantity,
+              pickupListItemId: item.id,
+            },
+          });
+        }
       }
     }
 
@@ -201,5 +227,6 @@ export async function completePickupListAction(
   revalidatePath(path);
   revalidatePath("/pickup-lists");
   revalidatePath("/warehouse");
+  revalidatePath("/expiry");
   redirect(path);
 }

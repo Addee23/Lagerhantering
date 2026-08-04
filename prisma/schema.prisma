@@ -49,6 +49,7 @@ model StaffMember {
   stockMovements       StockMovement[]
   completedPickupLists PickupList[]
   approvedDeliveries   Delivery[]
+  resolvedExpiryRecords ExpiryRecord[]
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
@@ -131,6 +132,7 @@ model Product {
   stockMovements   StockMovement[]
   pickupListItems  PickupListItem[]
   deliveryItems    DeliveryItem[]
+  expiryRecords    ExpiryRecord[]
 }
 
 // Kopplingen mellan en produkt och EN specifik leverantör
@@ -225,6 +227,8 @@ model PickupListItem {
   isPartial         Boolean    @default(false)
   comment           String?
   pickedAt          DateTime?
+
+  expiryRecords ExpiryRecord[]
 }
 
 // Fas 5 - Manuell inleverans (skills/delivery-and-ai-rules.md).
@@ -353,4 +357,44 @@ model DamageImage {
   deliveryIssue   DeliveryIssue @relation(fields: [deliveryIssueId], references: [id], onDelete: Cascade)
   filePath        String
   createdAt       DateTime      @default(now())
+}
+
+// Fas 7 - Bäst före i BUTIKEN (skills/expiry-rules.md). Lagret (det externa)
+// har redan ett exakt saldo med eget bäst före-datum via StockBatch
+// (Fas 3) - butiken saknar helt en egen lagerhantering och har bara ett
+// ungefärligt antal per bäst före-parti (skills/business-rules.md, punkt 3).
+// Skapas automatiskt när en hämtlista slutförs (varorna flyttas till
+// butiken), en post per lagerparti som FEFO-uttaget faktiskt tog ifrån.
+enum ExpiryRecordStatus {
+  AKTIV
+  AVSLUTAD
+}
+
+model ExpiryRecord {
+  id                Int                @id @default(autoincrement())
+  productId         Int
+  product           Product            @relation(fields: [productId], references: [id])
+  expiryDate        DateTime?
+  quantityRemaining Int
+  // Fritext-placering, t.ex. "Kyl 1", "Frys" (skills, punkt 3). Tidigare
+  // använda placeringar visas som förslag i UI:t - inget eget register.
+  placement         String?
+  comment           String?
+  status            ExpiryRecordStatus @default(AKTIV)
+  lastCheckedAt     DateTime?
+  createdAt         DateTime           @default(now())
+
+  // Sätts när posten avslutas ("Slut" / "Flyttad" / "Kasserad" / "Utgången").
+  // Historik skrivs aldrig över (skills/business-rules.md, punkt 15) - posten
+  // uppdateras in-place (samma mönster som DeliveryItem/PickupListItem) men
+  // raderas aldrig, och avslutandet loggas alltid separat i ActivityLog.
+  resolution              String?
+  discardedQuantity       Int?
+  resolvedAt              DateTime?
+  resolvedByStaffMemberId Int?
+  resolvedByStaffMember   StaffMember?    @relation(fields: [resolvedByStaffMemberId], references: [id])
+
+  // Spårbarhet till hämtlistan posten kom ifrån - valfri, bara för historik.
+  pickupListItemId Int?
+  pickupListItem   PickupListItem? @relation(fields: [pickupListItemId], references: [id])
 }

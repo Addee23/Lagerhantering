@@ -386,3 +386,53 @@ Under testet hittades och åtgärdades även två skarpa buggar: Server Actions 
 (1 MB) som stoppade större filer, och webbläsarens engelska filväljartext.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 7 (2026-08-04) – Bäst före i butiken
+
+**Vad byggdes:**
+- `ExpiryRecord` - butikens bäst före-poster (skills/expiry-rules.md): ungefärligt antal kvar,
+  fritext-placering, status Aktiv/Avslutad. Historik skrivs aldrig över - en avslutad post
+  uppdateras in-place men raderas aldrig (skills/business-rules.md, punkt 15).
+- Kopplade ihop Fas 4 och Fas 7: `completePickupListAction` skapar nu en riktig `ExpiryRecord`-rad
+  per lagerparti FEFO-uttaget faktiskt tog ifrån (med rätt antal och bäst före-datum), istället för
+  att bara skriva en textrad i loggen som tidigare (känd begränsning sedan Fas 4/5).
+- `/expiry`-sidan: aktiv lista som kombinerar butikens poster (`ExpiryRecord`) och lagrets partier
+  med bäst före-datum (`StockBatch`) i en gemensam vy. Filter: 7/14/30/60/90 dagar (standard 30),
+  eget datumintervall, kategori, varumärke, leverantör, produkt, plats (butik/lager), placering,
+  aktiv/avslutad, endast utgångna.
+- Per butikspost: uppdatera antal kvar, markera kontrollerad, Slut, Flyttad, Kasserad (kräver PIN).
+  En post vars datum har passerat flaggas automatiskt "Utgången" och kassationen loggas då som en
+  egen händelsetyp för spårbarhet. Lagrets rader länkar istället vidare till den befintliga
+  `/warehouse/[id]`-sidan (Fas 3) - ingen duplicerad lagerlogik.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (ExpiryRecord, ExpiryRecordStatus) + migrering
+- `src/lib/actions/expiry-actions.ts` (ny)
+- `src/lib/actions/pickup-list-actions.ts` (`deductStockFefo` returnerar nu vilka partier/datum
+  som faktiskt konsumerades, `completePickupListAction` skapar `ExpiryRecord`-rader)
+- `src/app/(app)/expiry/page.tsx`
+
+**Vad du lärde dig idag:**
+- Att en enda hämtlisterad kan plocka från flera olika lagerpartier med olika bäst före-datum, och
+  varför FEFO-funktionen därför måste rapportera tillbaka *vilka* partier den tog ifrån - inte bara
+  dra ner en totalsumma.
+- Att butiken (Fas 7) och lagret (Fas 3) medvetet har olika detaljnivå - butiken får bara ett
+  ungefärligt antal per bäst före-parti, aldrig ett exakt löpande saldo (skills/business-rules.md,
+  punkt 3-4) - och att UI:t därför pekar vidare till lagrets sida istället för att bygga om samma
+  logik för lagrets rader.
+- Repeterade react-hooks/purity-mönstret från tidigare faser (egen icke-komponent-funktion för
+  `Date.now()`) på en tredje sida.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- "Kontrollerad" och "Flyttad" kräver inget PIN (bara Kasserad/Utgången gör det) - en medveten
+  avvägning eftersom inget fysiskt kasseras i de fallen.
+- Ingen streckkodsskanning vid hantering av en bäst före-post än, samma avgränsning som
+  hämtlistorna i Fas 4.
+
+**Testresultat:** OK - testat i webbläsaren av användaren: skapade lagerparti med bäst
+före-datum, hämtlista med den produkten, slutförde hämtningen, verifierade att en ny post dök upp
+på `/expiry` med rätt antal och datum, testade filter samt uppdatera antal/kontrollerad/kassera.
+
+**Godkänt att gå vidare:** Ja
