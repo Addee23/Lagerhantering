@@ -5,9 +5,20 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSessionCookie, destroySessionCookie } from "@/lib/session";
 
+// proxy.ts skickar med ?from=<sida> när den skickar en oinloggad användare
+// till /login, så att de hamnar tillbaka där de var på väg efter inloggning
+// istället för alltid på dashboarden. `from` kommer från query-strängen och
+// är därför användarstyrd - måste valideras som en intern sökväg (börjar med
+// EN "/", aldrig "//...") annars öppnar det för en "open redirect".
+function safeRedirectPath(path: string | null): string {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return "/";
+  return path;
+}
+
 export async function loginAction(formData: FormData): Promise<void> {
   const username = String(formData.get("username") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const from = safeRedirectPath(String(formData.get("from") ?? ""));
 
   const user = username ? await prisma.systemUser.findUnique({ where: { username } }) : null;
 
@@ -17,11 +28,11 @@ export async function loginAction(formData: FormData): Promise<void> {
   const passwordMatches = await bcrypt.compare(password, passwordHashToCompare);
 
   if (!user || !passwordMatches) {
-    redirect("/login?error=1");
+    redirect(`/login?error=1&from=${encodeURIComponent(from)}`);
   }
 
   await createSessionCookie(user.username);
-  redirect("/");
+  redirect(from);
 }
 
 export async function logoutAction(): Promise<void> {

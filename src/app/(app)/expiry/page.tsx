@@ -25,6 +25,24 @@ function daysUntil(date: Date | null, now: number): number | null {
   return Math.ceil((date.getTime() - now) / (1000 * 60 * 60 * 24));
 }
 
+// Bygger en /expiry-länk som behåller alla nuvarande filter förutom de som
+// uttryckligen skrivs över - annars nollställer snabbfiltren (7/14/30 dagar)
+// resten av filtren varje gång man klickar på ett.
+function buildFilterHref(
+  sp: Record<string, string | undefined>,
+  overrides: Record<string, string>,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (key === "error" || key === "pinError" || !value) continue;
+    params.set(key, value);
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    params.set(key, value);
+  }
+  return `/expiry?${params.toString()}`;
+}
+
 type ExpiryRow = {
   key: string;
   location: "BUTIK" | "LAGER";
@@ -245,7 +263,7 @@ export default async function ExpiryPage({
         {["7", "14", "30", "60", "90", "alla"].map((d) => (
           <Link
             key={d}
-            href={`/expiry?days=${d}`}
+            href={buildFilterHref(sp, { days: d })}
             className={`rounded-md border px-3 py-1.5 ${
               days === d
                 ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
@@ -257,7 +275,15 @@ export default async function ExpiryPage({
         ))}
       </div>
 
+      <datalist id="placement-suggestions">
+        {placements.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
+
       <form method="get" className="grid gap-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-3">
+        {/* Bevarar aktivt snabbfilter (7/14/30 dagar) när formuläret nedan skickas in. */}
+        <input type="hidden" name="days" value={days} />
         <div>
           <label className={labelClass} htmlFor="categoryId">Kategori</label>
           <select id="categoryId" name="categoryId" defaultValue={categoryId} className={inputClass}>
@@ -312,11 +338,6 @@ export default async function ExpiryPage({
             placeholder="t.ex. Kyl 1"
             className={inputClass}
           />
-          <datalist id="placement-suggestions">
-            {placements.map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
         </div>
         <div>
           <label className={labelClass} htmlFor="status">Status</label>

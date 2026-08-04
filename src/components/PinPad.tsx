@@ -34,8 +34,14 @@ export function PinPad({
     setPin((prev) => prev.slice(0, -1));
   }
 
+  // PIN-koder är alltid 4 ELLER 6 siffror (skills/authentication-and-pin.md,
+  // 21.2) - 5 siffror är aldrig giltigt. Utan den här kontrollen kunde man
+  // råka skicka in en ofullständig kod och slösa ett av de 5 tillåtna
+  // försöken på ett garanterat felaktigt värde.
+  const isValidLength = pin.length === 4 || pin.length === 6;
+
   function submit() {
-    if (!selectedId || pin.length < 4 || isPending) return;
+    if (!selectedId || !isValidLength || isPending) return;
 
     startTransition(async () => {
       const result = await verifyPinAction(Number(selectedId), pin, { eventType, description });
@@ -132,7 +138,7 @@ export function PinPad({
         </button>
         <button
           type="button"
-          disabled={!selectedId || pin.length < 4 || isPending}
+          disabled={!selectedId || !isValidLength || isPending}
           onClick={submit}
           className="rounded-lg bg-neutral-900 py-4 text-sm font-medium text-white disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
         >

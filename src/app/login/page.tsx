@@ -4,9 +4,9 @@ import { Alert } from "@/components/Alert";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; from?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, from } = await searchParams;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 p-4 dark:bg-neutral-950">
@@ -24,6 +24,8 @@ export default async function LoginPage({
         </div>
 
         {error && <Alert tone="error">Fel användarnamn eller lösenord.</Alert>}
+
+        {from && <input type="hidden" name="from" value={from} />}
 
         <div className="space-y-1">
           <label

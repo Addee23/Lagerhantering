@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { checkStaffPin, redirectWithPinError } from "@/lib/pin-verification";
@@ -77,8 +76,12 @@ export async function resolveExpiryRecordAction(
       redirectWithPinError(PATH, pinResult);
     }
 
-    const discardedQuantity = Number(formData.get("discardedQuantity"));
-    if (!Number.isFinite(discardedQuantity) || discardedQuantity <= 0) return;
+    const requestedQuantity = Number(formData.get("discardedQuantity"));
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) return;
+    // Kan aldrig kassera fler än vad som faktiskt är kvar på posten (samma
+    // skydd som discardStockBatchAction har för lagret) - annars hade
+    // resten av antalet blivit spårlöst borta ur historiken.
+    const discardedQuantity = Math.min(requestedQuantity, record.quantityRemaining);
     const comment = String(formData.get("comment") ?? "").trim() || null;
 
     await prisma.$transaction([
@@ -88,6 +91,7 @@ export async function resolveExpiryRecordAction(
           status: "AVSLUTAD",
           resolution: decision,
           discardedQuantity,
+          quantityRemaining: record.quantityRemaining - discardedQuantity,
           resolvedAt: new Date(),
           resolvedByStaffMemberId: staffMemberId,
           comment,
@@ -115,6 +119,7 @@ export async function updateExpiryRecordPlacementAction(
 ): Promise<void> {
   const placement = String(formData.get("placement") ?? "").trim() || null;
   await prisma.expiryRecord.update({ where: { id: recordId }, data: { placement } });
+  // Ingen redirect() - en sådan hade skickat tillbaka till /expiry utan
+  // query-parametrarna, och tappat vilka filter personalen hade satt.
   revalidatePath(PATH);
-  redirect(PATH);
 }
