@@ -436,3 +436,73 @@ före-datum, hämtlista med den produkten, slutförde hämtningen, verifierade a
 på `/expiry` med rätt antal och datum, testade filter samt uppdatera antal/kontrollerad/kassera.
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Kodgranskning (2026-08-04) – Fas 1-4 samt kvarstående Fas 7-fixar
+
+På begäran granskades även Fas 1-4 (som aldrig fått en dedikerad genomgång i den här
+omgången), plus tre buggar kvar från Fas 7:s granskning.
+
+**Hittat och fixat:**
+- Fas 7: kassation av en bäst före-post validerade inte antalet mot vad som faktiskt fanns kvar,
+  och uppdaterade aldrig `quantityRemaining` - en delvis kassation lämnade resten spårlöst.
+- Fas 7: snabbfiltren och filterformuläret på `/expiry` nollställde varandra. Dubblerade
+  `datalist`-id:n (ogiltig HTML) städades bort.
+- Fas 1: PIN-panelen tillät en ogiltig 5-siffrig kod (bara 4/6 är giltiga), vilket slösade ett av
+  de 5 tillåtna försöken. `?from=`-parametern som `proxy.ts` satte vid omdirigering till
+  inloggning lästes aldrig - man hamnade alltid på dashboarden istället för sidan man försökte nå.
+
+**Rapporterat men inte fixat (medvetna avvägningar):**
+- `updateProductAction` kör inte samma dubblettkontroll som `createProductAction`.
+- Kategori-/varumärkesskapande fångar alla databasfel som "namnet finns redan", även orelaterade
+  fel.
+
+**Testresultat:** OK - `npx tsc --noEmit` och `npm run lint` gröna efter samtliga fixar.
+
+**Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 8 (2026-08-04) – Butikens beställningslista
+
+**Vad byggdes:**
+- `OrderListItem` - en helt manuell beställningslista (docs/dagsplan.md, dag 14). Systemet skickar
+  aldrig något automatiskt till en leverantör (skills/business-rules.md, avgränsningar) -
+  personalen beställer själva utanför systemet och markerar sedan här vad som hänt.
+- `/order-list`-sidan: lägg till produkt med valfri leverantör, orsak, prioritet (Låg/Normal/Hög)
+  och antal. Statusflöde **Att beställa → Beställd → Mottagen** (eller **Avbruten**), listan
+  grupperad per leverantör så det är tydligt vem man ska kontakta. Standardvyn visar bara aktiva
+  poster, med en länk för att visa historiken (mottagna/avbrutna bevaras, raderas aldrig).
+
+**Berörda filer:**
+- `prisma/schema.prisma` (OrderListItem, OrderListPriority, OrderListStatus) + två migreringar
+- `src/lib/actions/order-list-actions.ts` (ny)
+- `src/app/(app)/order-list/page.tsx`
+
+**Kodgranskning (samma pass):**
+- Bugg: grupperna på sidan renderades med leverantörens **namn** som React-key istället för id,
+  trots att grupperingslogiken redan använde id internt. `Supplier.name` saknar (till skillnad
+  från Category/Brand) en unik-begränsning, så två leverantörer med samma namn hade gett en
+  dubblerad key och risk för att fel grupp uppdateras i gränssnittet.
+- Ett `comment`-fält lades till i schemat men användes aldrig av någon kod - togs bort igen med en
+  egen migrering istället för att lämnas som död kolumn.
+
+**Vad du lärde dig idag:**
+- Varför React-nycklar måste vara garanterat unika (id, inte ett fritextfält utan unik-
+  begränsning i databasen) - annars kan gränssnittet blanda ihop eller felrendera grupper.
+- Skillnaden mellan att `updateMany` med ett statusvillkor i `where` (säker, tyst no-op om
+  posten redan bytt status) och ett vanligt `update` (kan skriva över ett tillstånd som redan
+  hunnit ändras av någon annan).
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen koppling mellan en mottagen beställningsradpost och en riktig `Delivery` - att markera
+  "Mottagen" här uppdaterar inte lagret, det görs fortfarande via en vanlig inleverans (Fas 5/6).
+- Ingen automatisk föreslagning från lågt lagersaldo (Fas 3) till beställningslistan - allt läggs
+  till manuellt, per den här fasens medvetna, avgränsade scope.
+
+**Testresultat:** OK - testat i webbläsaren av användaren: produkt tillagd med och utan vald
+leverantör, gruppering per leverantör fungerade, hela statusflödet (beställd/mottagen/avbruten)
+testat, "Visa alla" visar historiken korrekt.
+
+**Godkänt att gå vidare:** Ja

@@ -107,6 +107,7 @@ model Supplier {
 
   supplierProducts SupplierProduct[]
   deliveries       Delivery[]
+  orderListItems   OrderListItem[]
 }
 
 // En produkt använder alltid den fasta enheten flak/pall
@@ -133,6 +134,7 @@ model Product {
   pickupListItems  PickupListItem[]
   deliveryItems    DeliveryItem[]
   expiryRecords    ExpiryRecord[]
+  orderListItems   OrderListItem[]
 }
 
 // Kopplingen mellan en produkt och EN specifik leverantör
@@ -397,4 +399,41 @@ model ExpiryRecord {
   // Spårbarhet till hämtlistan posten kom ifrån - valfri, bara för historik.
   pickupListItemId Int?
   pickupListItem   PickupListItem? @relation(fields: [pickupListItemId], references: [id])
+}
+
+// Fas 8 - Butikens beställningslista (docs/dagsplan.md, dag 14). Endast en
+// MANUELL lista - systemet skickar aldrig en beställning automatiskt till
+// någon leverantör (skills/business-rules.md, avgränsningar). Personalen
+// beställer själva utanför systemet (telefon/mejl) och markerar sedan vad
+// som hänt här, grupperat per leverantör för att göra det tydligt vem man
+// ska ringa/mejla.
+enum OrderListPriority {
+  LAG
+  NORMAL
+  HOG
+}
+
+enum OrderListStatus {
+  ATT_BESTALLA
+  BESTALLD
+  MOTTAGEN
+  AVBRUTEN
+}
+
+model OrderListItem {
+  id         Int                @id @default(autoincrement())
+  productId  Int
+  product    Product            @relation(fields: [productId], references: [id])
+  // Vilken leverantör man tänker beställa från - styr grupperingen. Nullable
+  // eftersom en produkt kan sakna leverantörskoppling eller ha flera, och
+  // personalen kanske inte vet/bestämt sig än.
+  supplierId Int?
+  supplier   Supplier?          @relation(fields: [supplierId], references: [id])
+  reason     String?
+  priority   OrderListPriority  @default(NORMAL)
+  quantity   Int?
+  status     OrderListStatus    @default(ATT_BESTALLA)
+  createdAt  DateTime           @default(now())
+  orderedAt  DateTime?
+  receivedAt DateTime?
 }
