@@ -84,72 +84,77 @@ export default async function OrderListPage({
         </p>
       </div>
 
-      <form
-        action={addOrderListItemAction}
-        className="grid gap-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-2"
-      >
-        <div>
-          <label className={labelClass} htmlFor="productId">
-            Produkt
-          </label>
-          <select id="productId" name="productId" required className={inputClass}>
-            <option value="">Välj produkt...</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="supplierId">
-            Leverantör (valfritt)
-          </label>
-          <select id="supplierId" name="supplierId" className={inputClass}>
-            <option value="">Vet inte / flera</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="quantity">
-            Antal flak/pall (valfritt)
-          </label>
-          <input id="quantity" name="quantity" type="number" min={1} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor="priority">
-            Prioritet
-          </label>
-          <select id="priority" name="priority" defaultValue="NORMAL" className={inputClass}>
-            <option value="LAG">Låg</option>
-            <option value="NORMAL">Normal</option>
-            <option value="HOG">Hög</option>
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelClass} htmlFor="reason">
-            Orsak (valfritt)
-          </label>
-          <input
-            id="reason"
-            name="reason"
-            placeholder="t.ex. Lågt saldo, kund efterfrågade"
-            className={inputClass}
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <button
-            type="submit"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
-          >
-            Lägg till
-          </button>
-        </div>
-      </form>
+      <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          + Lägg till produkt att beställa
+        </summary>
+        <form
+          action={addOrderListItemAction}
+          className="grid gap-4 border-t border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-2"
+        >
+          <div>
+            <label className={labelClass} htmlFor="productId">
+              Produkt
+            </label>
+            <select id="productId" name="productId" required className={inputClass}>
+              <option value="">Välj produkt...</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="supplierId">
+              Leverantör (valfritt)
+            </label>
+            <select id="supplierId" name="supplierId" className={inputClass}>
+              <option value="">Vet inte / flera</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="quantity">
+              Antal flak/pall (valfritt)
+            </label>
+            <input id="quantity" name="quantity" type="number" min={1} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="priority">
+              Prioritet
+            </label>
+            <select id="priority" name="priority" defaultValue="NORMAL" className={inputClass}>
+              <option value="LAG">Låg</option>
+              <option value="NORMAL">Normal</option>
+              <option value="HOG">Hög</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass} htmlFor="reason">
+              Orsak (valfritt)
+            </label>
+            <input
+              id="reason"
+              name="reason"
+              placeholder="t.ex. Lågt saldo, kund efterfrågade"
+              className={inputClass}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
+            >
+              Lägg till
+            </button>
+          </div>
+        </form>
+      </details>
 
       <div className="flex justify-end text-sm">
         <Link href={showAll ? "/order-list" : "/order-list?all=1"} className="text-neutral-500 hover:underline">

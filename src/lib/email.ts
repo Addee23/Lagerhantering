@@ -19,7 +19,7 @@ export async function sendEmail(params: {
   subject: string;
   text: string;
   attachments?: OutgoingAttachment[];
-}): Promise<void> {
+}): Promise<{ messageId: string }> {
   const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
     throw new Error(
@@ -39,7 +39,7 @@ export async function sendEmail(params: {
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 
-  await transporter.sendMail({
+  const info = await transporter.sendMail({
     from: SMTP_FROM || SMTP_USER,
     to: params.to,
     cc: params.cc || undefined,
@@ -50,4 +50,8 @@ export async function sendEmail(params: {
       path: resolveUploadPath(a.filePath),
     })),
   });
+
+  // Sparas på ComplaintEmail så att ett inkommande svar kan trådmatchas mot
+  // det här mejlet via In-Reply-To/References (Fas 10).
+  return { messageId: info.messageId };
 }

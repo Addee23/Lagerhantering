@@ -67,11 +67,11 @@ export default async function WarehouseProductPage({
         )}
       </div>
 
-      <div className="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
-        <h2 className="font-medium text-neutral-900 dark:text-neutral-50">
-          Ta emot lagerparti
-        </h2>
-        <form action={receiveAction} className="space-y-3">
+      <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          + Ta emot lagerparti
+        </summary>
+        <form action={receiveAction} className="space-y-3 border-t border-neutral-200 p-4 dark:border-neutral-800">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass} htmlFor="quantity">
@@ -107,7 +107,7 @@ export default async function WarehouseProductPage({
             Bekräfta mottagning
           </button>
         </form>
-      </div>
+      </details>
 
       <div className="space-y-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-50">Lagerpartier</h2>

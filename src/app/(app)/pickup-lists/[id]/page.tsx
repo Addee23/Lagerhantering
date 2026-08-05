@@ -204,46 +204,50 @@ export default async function PickupListDetailPage({
       </div>
 
       {isDraft && (
-        <form
-          action={addPickupListItemAction.bind(null, list.id)}
-          className="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
-        >
-          <h2 className="font-medium text-neutral-900 dark:text-neutral-50">Lägg till produkt</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass} htmlFor="productId">
-                Produkt
-              </label>
-              <select id="productId" name="productId" required className={inputClass}>
-                <option value="">Välj produkt...</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="requestedQuantity">
-                Antal flak/pall att hämta
-              </label>
-              <input
-                id="requestedQuantity"
-                name="requestedQuantity"
-                type="number"
-                min={1}
-                required
-                className={inputClass}
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700"
+        <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            + Lägg till produkt
+          </summary>
+          <form
+            action={addPickupListItemAction.bind(null, list.id)}
+            className="space-y-3 border-t border-neutral-200 p-4 dark:border-neutral-800"
           >
-            Lägg till i listan
-          </button>
-        </form>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass} htmlFor="productId">
+                  Produkt
+                </label>
+                <select id="productId" name="productId" required className={inputClass}>
+                  <option value="">Välj produkt...</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="requestedQuantity">
+                  Antal flak/pall att hämta
+                </label>
+                <input
+                  id="requestedQuantity"
+                  name="requestedQuantity"
+                  type="number"
+                  min={1}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700"
+            >
+              Lägg till i listan
+            </button>
+          </form>
+        </details>
       )}
 
       {isDraft && (

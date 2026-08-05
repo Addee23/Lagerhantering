@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
 export default async function ActivityLogPage() {
-  // skills/logging-and-audit-rules.md: loggen är oföränderlig och visas i sin
-  // helhet - inget filter/paginering än, det byggs ut i senare faser.
+  // skills/logging-and-audit-rules.md: "Koppling till relaterad leverans,
+  // hämtlista och/eller reklamation, om tillämpligt" - utöver fritexten i
+  // description, så en loggrad går att klicka sig vidare från direkt.
   const entries = await prisma.activityLog.findMany({
     orderBy: { createdAt: "desc" },
     include: { staffMember: { select: { name: true } } },
@@ -26,6 +28,7 @@ export default async function ActivityLogPage() {
                 <th className="px-4 py-2 font-medium">Datum och tid</th>
                 <th className="px-4 py-2 font-medium">Personal</th>
                 <th className="px-4 py-2 font-medium">Händelse</th>
+                <th className="px-4 py-2 font-medium">Kopplat till</th>
               </tr>
             </thead>
             <tbody>
@@ -39,6 +42,26 @@ export default async function ActivityLogPage() {
                   </td>
                   <td className="px-4 py-2">{entry.staffMember?.name ?? "Okänd"}</td>
                   <td className="px-4 py-2">{entry.description}</td>
+                  <td className="whitespace-nowrap px-4 py-2">
+                    {entry.deliveryId && (
+                      <Link href={`/deliveries/${entry.deliveryId}`} className="text-neutral-500 hover:underline">
+                        Leverans #{entry.deliveryId}
+                      </Link>
+                    )}
+                    {entry.pickupListId && (
+                      <Link href={`/pickup-lists/${entry.pickupListId}`} className="text-neutral-500 hover:underline">
+                        Hämtlista #{entry.pickupListId}
+                      </Link>
+                    )}
+                    {entry.complaintId && (
+                      <Link href={`/complaints/${entry.complaintId}`} className="text-neutral-500 hover:underline">
+                        Reklamation #{entry.complaintId}
+                      </Link>
+                    )}
+                    {!entry.deliveryId && !entry.pickupListId && !entry.complaintId && (
+                      <span className="text-neutral-300 dark:text-neutral-700">–</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

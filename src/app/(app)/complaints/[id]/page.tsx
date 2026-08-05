@@ -285,20 +285,39 @@ export default async function ComplaintDetailPage({
 
       {sentEmails.length > 0 && (
         <div className="space-y-3 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-          <h2 className="font-medium text-neutral-900 dark:text-neutral-50">Skickade mejl</h2>
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-50">Mejlhistorik</h2>
           <ul className="space-y-3">
-            {sentEmails.map((email) => (
-              <li key={email.id} className="rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-800">
-                <p className="font-medium text-neutral-900 dark:text-neutral-50">{email.subject}</p>
-                <p className="text-xs text-neutral-400">
-                  Till {email.toAddress}
-                  {email.ccAddress && `, kopia ${email.ccAddress}`} · Skickat{" "}
-                  {email.sentAt?.toLocaleString("sv-SE")} av {email.sentByStaffMember?.name ?? "okänd"}
-                  {email.attachments.length > 0 && ` · ${email.attachments.length} bilaga(or)`}
-                </p>
-                <p className="mt-2 whitespace-pre-wrap text-neutral-600 dark:text-neutral-300">{email.body}</p>
-              </li>
-            ))}
+            {sentEmails.map((email) => {
+              const isIncoming = email.direction === "inkommande";
+              return (
+                <li
+                  key={email.id}
+                  className={`rounded-xl border p-4 text-sm dark:border-neutral-800 ${
+                    isIncoming ? "border-safety-200 dark:border-safety-900" : "border-neutral-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-50">{email.subject}</p>
+                    <StatusBadge tone={isIncoming ? "warning" : "neutral"}>
+                      {isIncoming ? "Från leverantören" : "Skickat"}
+                    </StatusBadge>
+                  </div>
+                  <p className="text-xs text-neutral-400">
+                    {isIncoming ? (
+                      <>Mottaget {email.sentAt?.toLocaleString("sv-SE")}</>
+                    ) : (
+                      <>
+                        Till {email.toAddress}
+                        {email.ccAddress && `, kopia ${email.ccAddress}`} · Skickat{" "}
+                        {email.sentAt?.toLocaleString("sv-SE")} av {email.sentByStaffMember?.name ?? "okänd"}
+                      </>
+                    )}
+                    {email.attachments.length > 0 && ` · ${email.attachments.length} bilaga(or)`}
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-neutral-600 dark:text-neutral-300">{email.body}</p>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

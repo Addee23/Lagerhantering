@@ -281,7 +281,11 @@ export default async function ExpiryPage({
         ))}
       </datalist>
 
-      <form method="get" className="grid gap-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-3">
+      <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          + Filtrera
+        </summary>
+        <form method="get" className="grid gap-4 border-t border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-3">
         {/* Bevarar aktivt snabbfilter (7/14/30 dagar) när formuläret nedan skickas in. */}
         <input type="hidden" name="days" value={days} />
         <div>
@@ -367,7 +371,8 @@ export default async function ExpiryPage({
             Filtrera
           </button>
         </div>
-      </form>
+        </form>
+      </details>
 
       <div className="space-y-4">
         {rows.length === 0 ? (

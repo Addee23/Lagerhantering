@@ -1,28 +1,103 @@
 @import "tailwindcss";
 
+/* Design-identitet: "lastbrygga/fraktsedel" - varm kraftpapperspalett istället
+   för kallt grått, med en signalorange accent (samma känsla som en
+   varselväst eller en pallgaffel). Statiska tema-tokens (samma i ljust/mörkt
+   läge) deklareras direkt i @theme, Tailwind v4:s sätt att skriva över den
+   inbyggda paletten - alla neutral-*-klasser som redan används i hela appen
+   plockar då upp den nya identiteten automatiskt, utan att varje fil
+   behöver ändras för hand. */
+@theme {
+  --color-neutral-50: #faf7f2;
+  --color-neutral-100: #f2eae0;
+  --color-neutral-200: #e3d3c1;
+  --color-neutral-300: #cbb394;
+  --color-neutral-400: #a8895f;
+  --color-neutral-500: #8a6f4c;
+  --color-neutral-600: #6e5738;
+  --color-neutral-700: #453724;
+  --color-neutral-800: #2e251a;
+  --color-neutral-900: #1e1811;
+  --color-neutral-950: #120e0a;
+
+  /* Signalorange - appens enda accentfärg, sparad för det som faktiskt ska
+     sticka ut (statusstämplar, viktiga siffror), inte allt. Fullständig
+     skala (samma steg som Tailwinds inbyggda amber/orange) eftersom flera
+     sidor redan hade varningsfärger i olika nyanser - amber-* byttes till
+     safety-* överallt så det blir EN sammanhållen varningsfärg istället för
+     två olika oranger på olika sidor. */
+  --color-safety-50: #fff4ec;
+  --color-safety-100: #fee5d3;
+  --color-safety-200: #fdc9a3;
+  --color-safety-300: #fba669;
+  --color-safety-400: #f67d33;
+  --color-safety-500: #e8590c;
+  --color-safety-600: #c2410c;
+  --color-safety-700: #9a3412;
+  --color-safety-800: #7c2d12;
+  --color-safety-900: #66260f;
+  --color-safety-950: #3d1608;
+
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono-data);
+  --font-display: var(--font-display);
+}
+
+/* --background/--foreground ÄNDRAS beroende på färgschema (se media queryn
+   nedan), så de måste vara riktiga :root-variabler + @theme inline (som
+   läser av det aktuella värdet vid varje render) - till skillnad från
+   paletten ovan som är fast. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf7f2;
+  --foreground: #1e1811;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #171009;
+    --foreground: #f2eae0;
   }
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  /* Mycket subtil pappersstruktur (kornighet) - förstärker
+     kraftpapperskänslan utan att det syns som ett "mönster", bara en
+     antydan av textur. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, Helvetica, sans-serif;
+}
+
+/* Rubriker får den kantiga, industriella rubrikstilen - en genomgående
+   signaturdetalj som slår igenom på alla sidor utan att varje <h1>/<h2>
+   behöver märkas upp för hand. Sidtitlar (h1) dras isär och versaliseras
+   lite, som text stämplad på en fraktetikett; h2/h3 håller sig lugnare så
+   det inte blir för skrikigt på sidor med många sektionsrubriker. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Tabellhuvuden får samma "fraktsedel"-känsla - versaliserad, glesare text,
+   som en manifest-rubrik. */
+thead {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
 }
 
 /* Tailwind v4:s Preflight sätter medvetet cursor: default på <button> (skiljer

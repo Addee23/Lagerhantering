@@ -5,6 +5,24 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NAV_ITEMS } from "@/lib/nav-items";
 
+// skills/ui-and-mobile-rules.md: "Snabb sökning" - en enda sökruta i
+// navigationen som täcker produkter, leverantörer, varumärken, inleveranser
+// och reklamationer (se src/lib/search.ts). Vanlig GET-navigering till
+// /search, ingen JS krävs för att söka.
+function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <form method="get" action="/search" onSubmit={onNavigate} className="mb-4">
+      <input
+        type="search"
+        name="q"
+        placeholder="Sök..."
+        aria-label="Sök i hela systemet"
+        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+      />
+    </form>
+  );
+}
+
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
@@ -39,7 +57,9 @@ export function Nav({ username }: { username: string }) {
     <>
       {/* Mobil: kompakt topprad med hamburgermeny */}
       <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 md:hidden dark:border-neutral-800">
-        <span className="font-semibold text-neutral-900 dark:text-neutral-50">Hela Rubbet</span>
+        <Link href="/" className="font-semibold text-neutral-900 dark:text-neutral-50">
+          Hela Rubbet
+        </Link>
         <button
           type="button"
           aria-label="Öppna meny"
@@ -71,6 +91,7 @@ export function Nav({ username }: { username: string }) {
                 ✕
               </button>
             </div>
+            <SearchBox onNavigate={() => setIsOpen(false)} />
             <NavLinks onNavigate={() => setIsOpen(false)} />
             <p className="mt-6 truncate text-xs text-neutral-400">Inloggad som {username}</p>
           </div>
@@ -80,9 +101,10 @@ export function Nav({ username }: { username: string }) {
 
       {/* Dator/surfplatta: permanent sidomeny */}
       <aside className="hidden w-60 shrink-0 border-r border-neutral-200 p-4 md:flex md:flex-col dark:border-neutral-800">
-        <span className="mb-4 font-semibold text-neutral-900 dark:text-neutral-50">
+        <Link href="/" className="mb-4 font-semibold text-neutral-900 dark:text-neutral-50">
           Hela Rubbet
-        </span>
+        </Link>
+        <SearchBox />
         <NavLinks />
         <p className="mt-auto truncate pt-4 text-xs text-neutral-400">Inloggad som {username}</p>
       </aside>

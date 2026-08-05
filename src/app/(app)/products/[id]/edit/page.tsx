@@ -213,41 +213,46 @@ export default async function EditProductPage({
         </ul>
 
         {availableSuppliers.length > 0 ? (
-          <form action={addSupplierLinkAction} className="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
-            <div>
-              <label className={labelClass} htmlFor="supplierId">
-                Leverantör
-              </label>
-              <select id="supplierId" name="supplierId" required className={inputClass}>
-                <option value="">Välj leverantör...</option>
-                {availableSuppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              + Koppla leverantör
+            </summary>
+            <form action={addSupplierLinkAction} className="space-y-3 border-t border-neutral-200 p-4 dark:border-neutral-800">
               <div>
-                <label className={labelClass} htmlFor="supplierArticleNumber">
-                  Leverantörens artikelnummer
+                <label className={labelClass} htmlFor="supplierId">
+                  Leverantör
                 </label>
-                <input id="supplierArticleNumber" name="supplierArticleNumber" className={inputClass} />
+                <select id="supplierId" name="supplierId" required className={inputClass}>
+                  <option value="">Välj leverantör...</option>
+                  {availableSuppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className={labelClass} htmlFor="supplierProductName">
-                  Leverantörens produktnamn
-                </label>
-                <input id="supplierProductName" name="supplierProductName" className={inputClass} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass} htmlFor="supplierArticleNumber">
+                    Leverantörens artikelnummer
+                  </label>
+                  <input id="supplierArticleNumber" name="supplierArticleNumber" className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="supplierProductName">
+                    Leverantörens produktnamn
+                  </label>
+                  <input id="supplierProductName" name="supplierProductName" className={inputClass} />
+                </div>
               </div>
-            </div>
-            <button
-              type="submit"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
-            >
-              Koppla leverantör
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
+              >
+                Koppla leverantör
+              </button>
+            </form>
+          </details>
         ) : (
           <p className="text-sm text-neutral-400">
             Alla aktiva leverantörer är redan kopplade till den här produkten.

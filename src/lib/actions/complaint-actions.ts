@@ -189,8 +189,9 @@ export async function sendComplaintEmailAction(
   const damageImages = complaint.items.flatMap((item) => item.deliveryIssue.images);
 
   let sendError: string | null = null;
+  let messageId: string | null = null;
   try {
-    await sendEmail({
+    const result = await sendEmail({
       to: toAddress,
       cc: ccAddress,
       subject,
@@ -200,6 +201,7 @@ export async function sendComplaintEmailAction(
         filePath: img.filePath,
       })),
     });
+    messageId = result.messageId;
   } catch (err) {
     sendError = (err as Error).message;
   }
@@ -218,6 +220,7 @@ export async function sendComplaintEmailAction(
         body,
         sentAt: new Date(),
         sentByStaffMemberId: staffMemberId,
+        messageId,
         attachments: {
           create: damageImages.map((img) => ({
             filePath: img.filePath,
@@ -239,6 +242,7 @@ export async function sendComplaintEmailAction(
         eventType: "complaint_sent",
         description: `Skickade reklamation ${complaint.complaintNumber} till "${complaint.supplier.name}" (${toAddress}).`,
         staffMemberId,
+        complaintId,
       },
     });
   });
@@ -278,6 +282,7 @@ export async function updateComplaintStatusAction(complaintId: number, formData:
         description: `Uppdaterade status för reklamation ${complaint.complaintNumber} till "${status}".`,
         previousValue: complaint.status,
         newValue: status,
+        complaintId,
       },
     }),
   ]);

@@ -12,33 +12,40 @@ export default async function BrandsPage({
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">Varumärken</h1>
-      <p className="text-sm text-neutral-500 dark:text-neutral-400">
-        Varumärke är inte samma sak som leverantör - samma varumärke kan köpas från flera
-        leverantörer.
-      </p>
-
-      <form action={createBrandAction} className="flex gap-2">
-        <input
-          name="name"
-          placeholder="Nytt varumärke, t.ex. Red Bull"
-          required
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800"
-        />
-        <input
-          name="comment"
-          placeholder="Kommentar (valfritt)"
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800"
-        />
-        <button
-          type="submit"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
-        >
-          Lägg till
-        </button>
-      </form>
+      <div>
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">Varumärken</h1>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+          Varumärke är inte samma sak som leverantör - samma varumärke kan köpas från flera
+          leverantörer.
+        </p>
+      </div>
 
       {error === "finns-redan" && <Alert tone="error">Det finns redan ett varumärke med det namnet.</Alert>}
+
+      <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          + Lägg till varumärke
+        </summary>
+        <form action={createBrandAction} className="flex gap-2 border-t border-neutral-200 p-4 dark:border-neutral-800">
+          <input
+            name="name"
+            placeholder="Nytt varumärke, t.ex. Red Bull"
+            required
+            className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800"
+          />
+          <input
+            name="comment"
+            placeholder="Kommentar (valfritt)"
+            className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-base dark:border-neutral-700 dark:bg-neutral-800"
+          />
+          <button
+            type="submit"
+            className="whitespace-nowrap rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
+          >
+            Lägg till
+          </button>
+        </form>
+      </details>
 
       <ul className="divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
         {brands.map((brand) => (

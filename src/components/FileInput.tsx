@@ -41,7 +41,11 @@ export function FileInput({
         onChange={(event) => setFileName(event.target.files?.[0]?.name ?? null)}
         className="sr-only"
       />
-      <span className="truncate text-sm text-neutral-500 dark:text-neutral-400">
+      {/* min-w-0 krävs för att truncate ska funka i en flex-rad - annars
+          krymper flex-item inte under sitt innehålls bredd (webbläsarens
+          standard min-width: auto), och långa filnamn hade bara runnit ut
+          över kanten istället för att klippas med "...". */}
+      <span className="min-w-0 truncate text-sm text-neutral-500 dark:text-neutral-400">
         {fileName ?? placeholder}
       </span>
     </div>

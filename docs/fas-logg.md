@@ -576,3 +576,206 @@ PIN → mejlet togs emot (hamnade i skräpposten första gången, väntat given 
 ett kodfel).
 
 **Godkänt att gå vidare:** Ja
+
+---
+
+### Fas 10 (2026-08-04) – IMAP-inkorg och mejltrådar
+
+**Vad byggdes:**
+- `UnmatchedEmail`/`UnmatchedEmailStatus` samt `ComplaintEmail.messageId`/`inReplyTo`
+  (skills/complaint-and-email-rules.md, 20.3-20.5). `src/lib/imap.ts`: läser inkommande mejl via
+  IMAP (`imapflow` + `mailparser`), samma Gmail-konto som SMTP (Fas 9) om inga separata
+  `IMAP_*`-uppgifter finns i `.env`. Hämtar mejl mottagna de senaste 60 dagarna vid varje
+  körning.
+- `src/lib/actions/inbox-actions.ts`: `checkInboxAction` (manuellt triggad - ingen
+  bakgrundsjobb-infrastruktur i projektet, personalen klickar "Hämta nya mejl"). Matchning i
+  prioritetsordning enligt projektplanen 20.3: (1) `inReplyTo` mot en tidigare skickad
+  `ComplaintEmail.messageId` (riktig trådmatchning), (2) reklamationsnumret (`REK-ÅÅÅÅ-NNNN`) i
+  ämnesraden, (3) faktura-/ordernummer i ämne eller text (minst 4 tecken för att undvika falska
+  träffar), (4) leverantörens mejladress mot senaste öppna ärendet för den leverantören. Inget av
+  detta hittar en säker match → mejlet hamnar i `UnmatchedEmail` ("Ej kopplade mejl") istället för
+  att gissa fel.
+- Dedup mot `messageId` (både i `ComplaintEmail` och `UnmatchedEmail`) förhindrar dubbelimport om
+  "Hämta nya mejl" klickas flera gånger. Ett automatiskt matchat svar sätter reklamationens status
+  till "Väntar på svar" och skriver en `ActivityLog`-rad.
+- `/inbox`-sidan: lista över ej kopplade mejl med avsändare, ämne och ett textutdrag, knapp för att
+  koppla manuellt till ett öppet ärende (dropdown) eller markera som irrelevant.
+- Svar från systemet: `sendComplaintEmailAction` (Fas 9) sparar nu även `messageId`/`inReplyTo` på
+  utgående mejl, så att leverantörens svar på ett svar också trådas korrekt.
+
+**Berörda filer:**
+- `prisma/schema.prisma` (UnmatchedEmail, UnmatchedEmailStatus, ComplaintEmail.messageId/inReplyTo)
+  + migrering `20260804152637_add_unmatched_email_and_threading`
+- `src/lib/imap.ts` (ny), `src/lib/actions/inbox-actions.ts` (ny)
+- `src/app/(app)/inbox/page.tsx`
+- `src/lib/actions/complaint-actions.ts` (sparar messageId/inReplyTo vid sändning)
+- `package.json` (`imapflow`, `mailparser` tillagda)
+
+**Vad du lärde dig idag:**
+- Skillnaden mellan `Message-ID` och `In-Reply-To`/`References`-headrarna i ett mejl, och varför de
+  ger en mycket säkrare trådmatchning än att bara läsa ämnesraden (som kan ändras av mottagaren).
+- Varför dedup görs mot ett sparat `messageId` istället för att lita på IMAP:s `\Seen`-flagga (som
+  kan råka ändras av att någon öppnar mejlet i sin vanliga Gmail-app, utan koppling till appen).
+- Att en enskild trasig rad i en batch-import (t.ex. ett mejl utan `Message-ID`) inte får stoppa
+  hela importen - varje mejl hanteras i sin egen `try/catch`.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Ingen automatisk bakgrundshämtning - mejl hämtas bara när personalen klickar "Hämta nya mejl" på
+  `/inbox`. Tillräckligt för projektets skala, men innebär att ett svar inte dyker upp förrän någon
+  besöker sidan och klickar.
+- Bilagor på inkommande mejl läses/sparas inte än - bara mejlets textinnehåll. Utgående bilagor
+  (skadebilder, Fas 9) fungerar redan.
+- Fast 60-dagars sökfönster (`LOOKBACK_DAYS`) - ett svar som kommer långt efter det fönstret hade
+  inte hittats. Inget problem i praktiken eftersom reklamationer normalt löses inom veckor.
+
+**Testresultat:** Typkontroll och lint gröna. **Inte färdigtestat i webbläsaren av dig än** - IMAP
+kräver riktiga inkommande mejl (svar från en leverantör, eller ett manuellt skickat testmejl till
+inkorgen) för ett fullständigt test, vilket sköts upp till nästa testpass.
+
+**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
+webbläsaren innan detta räknas som slutgiltigt godkänt.
+
+---
+
+### Fas 11 (2026-08-05) – Dashboard, global sökning och helhetsgranskning
+
+**Vad byggdes:**
+- Dashboardet (`loadDashboardCounts()`) utökat till 9 mått i tre grupper (Lager & bäst före,
+  Leveranser & reklamationer, Hämtlistor & beställningar): aktiva hämtlistor, lågt lagersaldo,
+  bäst före inom 30 dagar, **redan utgångna produkter** (ny), inleveranser som väntar på
+  godkännande, **okopplade dokumentrader** (ny), reklamationer som väntar på svar, **ej kopplade
+  mejl** (ny), produkter som behöver beställas - de tre "ny"-märkta korten saknades tidigare trots
+  att de står uttryckligen i projektplanen (avsnitt 23).
+- `src/lib/search.ts`: global sökning (`globalSearch`) över produkter, leverantörer, varumärken,
+  leveranser (order-/fakturanummer) och reklamationer (reklamationsnummer), med `/search`-sida och
+  en sökruta i navigationen (mobil och dator) - projektplanens avsnitt 25.
+- `/activity-log`: ny kolumn "Kopplat till" som länkar vidare till leveransen/hämtlistan/
+  reklamationen en loggrad hör till (kräver de nya `ActivityLog`-relationerna, se kodgranskningen
+  nedan).
+- Dashboardets hero ("N saker väntar") och datumbadge omdesignade för tydligare visuell hierarki.
+- Städat bort döda utvecklingskomponenter (`DashboardPinTest`, `ComingSoonPage`) som inte längre
+  användes sedan `/staff`/`/settings` byggdes klart (se nästa logg-post).
+
+**Berörda filer:**
+- `src/app/(app)/page.tsx` (dashboard)
+- `src/lib/search.ts` (ny), `src/app/(app)/search/page.tsx` (ny)
+- `src/components/Nav.tsx` (sökruta)
+- `src/app/(app)/activity-log/page.tsx`
+- `src/components/DashboardPinTest.tsx`, `src/components/ComingSoonPage.tsx` (borttagna)
+
+**Vad du lärde dig idag:**
+- Varför en global sökning bör filtrera bort inaktiva poster (`active: true`) precis som
+  produktlistan gör - annars hade en inaktiverad produkt/leverantör dykt upp i sökresultat som om
+  den fortfarande gick att välja (hittades och fixades i självgranskningen, se nedan).
+- Att dashboardet enligt projektplanen (avsnitt 23) ska "fokusera på uppgifter som personalen
+  behöver agera på, inte bara statistik" - därför är alla nio korten åtgärdsorienterade
+  (väntar/saknas/utgången), inga rena räknare utan syfte.
+
+**Självgranskning (samma pass) - två brister hittade och fixade innan detta räknades som klart:**
+- `globalSearch` saknade från början `active: true` på produkter/leverantörer/varumärken - skulle
+  ha visat inaktiverade poster som vanliga träffar. Fixat.
+- `ActivityLog` hade inga riktiga databasrelationer till Delivery/PickupList/Complaint (bara
+  fritextfält), trots att projektplanen (avsnitt 22) kräver "Kopplad leverans/hämtlista/
+  reklamation" som riktig, klickbar information. Lade till `staffMemberId`/`deliveryId`/
+  `pickupListId`/`complaintId` som riktiga foreign keys på `ActivityLog`, uppdaterade alla
+  `activityLog.create()`-anrop i `delivery-actions.ts`, `pickup-list-actions.ts`,
+  `complaint-actions.ts`, `expiry-actions.ts` och `inbox-actions.ts` att sätta rätt id, och byggde
+  om `/activity-log` för att visa en klickbar "Kopplat till"-länk.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Inga dedikerade `loading.tsx`/`error.tsx`-filer (Next.js App Router-konventionen för
+  laddningslägen och felgränser) - projektplanens Fas 11-punkter "Laddningslägen" och
+  "Felmeddelanden" (utöver de `Alert`-komponenter som redan finns per sida) är alltså inte
+  fullt byggda än. Tas upp i nästa genomgång.
+- Kamera-streckkodsskanning (projektplanen avsnitt 25) är fortfarande inte byggd - en känd,
+  medveten avgränsning sedan Fas 4.
+
+**Testresultat:** Typkontroll och lint gröna efter samtliga fixar. **Inte färdigtestat i
+webbläsaren av dig än.**
+
+**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
+webbläsaren innan detta räknas som slutgiltigt godkänt.
+
+---
+
+### Kodgranskning + designomarbetning (2026-08-05) – /staff, /settings, kritisk bugg, visuell identitet
+
+Efter Fas 11 bad du om en fullständig kontroll av hela projektplanen (inte bara senaste fasen) och
+om en genomgripande, mer "designad" visuell identitet för hela appen. Detta blev ett eget,
+avgränsat pass mellan Fas 11 och nästa riktiga fas.
+
+**Hittat och fixat - en skarp bugg i godkännande-flödet:**
+- `approveDeliveryAction` och `markAllOkAction` (`src/lib/actions/delivery-actions.ts`), samt
+  UI-villkoren i `deliveries/[id]/page.tsx`, kontrollerade bara att en leveransrad hade ett
+  `productId` - inte att `matchStatus` faktiskt var `MATCHED`. Det betydde att en rad där AI:n
+  bara **föreslagit** en koppling (`SUGGESTED`, aldrig bekräftad av personalen) kunde godkännas
+  och uppdatera lagret som om matchningen var säker - en direkt överträdelse av
+  skills/delivery-and-ai-rules.md ("en föreslagen koppling ska behöva bekräftas") och projektplanens
+  regel 7 ("AI skapar endast ett utkast"). Fixat på alla tre ställen: gaten kräver nu
+  `matchStatus === "MATCHED"`.
+
+**Två gap mot projektplanen, hittade i en fullständig genomgång av samtliga `skills/*.md` mot
+nuvarande kod och databasschema, och fixade på din uttryckliga begäran:**
+- Se Fas 11-posten ovan (ActivityLog-relationer och global sökning).
+- `/staff` (personalregister) och `/settings` (kort bäst före-gräns, byte av systemlösenord)
+  saknades helt - visade bara "Kommer i en senare fas". Byggda klart, inklusive nya Server Actions
+  (`createStaffMemberAction`, `updateStaffMemberAction`, `changeStaffMemberPinAction`,
+  `toggleStaffMemberActiveAction`, `updateShortExpiryDaysAction`, `changeSystemPasswordAction`) och
+  en delad `src/lib/settings.ts` (`getDefaultShortExpiryDays`) som ersätter en hårdkodad
+  90-dagarsgräns i leveransflödet (Fas 5/6) med värdet från `/settings`.
+
+**Visuell omdesign ("lastbrygga/fraktsedel"-identitet), på din begäran efter en bifogad
+design-skill:**
+- Nytt färgschema (varm "kraft-paper"-neutral + "safety"-orange varningsfärg) via Tailwind v4:s
+  `@theme`, så att alla befintliga `neutral-*`-klasser i hela appen automatiskt ärver den nya
+  looken utan att varje fil behövt ändras. Tre typsnitt (Oswald för rubriker, IBM Plex Sans för
+  brödtext, JetBrains Mono för tabelldata) laddade via `next/font/google`.
+- `StatusBadge` omdesignad till en kantad, "stämplad" badge istället för en mjuk fylld pill.
+- Upptäckte och fixade en gammal bugg på köpet: `body` hade fortfarande ett hårdkodat
+  `font-family: Arial, Helvetica, sans-serif` sedan Fas 1, som hela tiden hade tystat det inlästa
+  webbfontet - och `<html lang="en">` som aldrig ändrats till `lang="sv"`.
+- Dashboardets hero och datumbadge fick två extra designpass på din begäran (större siffror,
+  dubbel "stämpel"-ram).
+
+**Navigering och mobilanpassning (svar på "vad ska jag testa + gå tillbaka till dashboard +
+inputfält ska inte fylla hela sidan"):**
+- "Hela Rubbet"-logotypen i navigationen är nu en länk till `/` från varje sida (mobil och dator).
+- Alla "Lägg till X"-formulär (kategorier, varumärken, leverantörer, personal, beställningslista,
+  produkter i en hämtlista/leverans, lagermottagning, leverantörskoppling) och `/expiry`s stora
+  filterformulär (9 fält) ihopfällda i `<details>/<summary>` ("+ Lägg till"/"+ Filtrera") istället
+  för att visas helt öppna - samma mönster som redan användes för "Hantera"-sektionerna sedan
+  tidigare faser.
+
+**Berörda filer (utöver Fas 11-postens):**
+- `prisma/schema.prisma` (ActivityLog-relationer) + migrering `20260805093826_add_activity_log_relations`
+- `src/lib/actions/delivery-actions.ts`, `src/lib/actions/pickup-list-actions.ts`,
+  `src/lib/actions/complaint-actions.ts`, `src/lib/actions/expiry-actions.ts`,
+  `src/lib/actions/inbox-actions.ts` (ActivityLog-relationer på samtliga `create()`-anrop)
+- `src/app/(app)/deliveries/[id]/page.tsx` (kritisk bugg + länk till reklamation)
+- `src/lib/settings.ts` (ny), `src/lib/actions/settings-actions.ts` (ny),
+  `src/app/(app)/settings/page.tsx`, `src/lib/actions/staff-actions.ts`, `src/app/(app)/staff/page.tsx`
+- `src/app/globals.css`, `src/app/layout.tsx`, `src/components/{StatusBadge,Alert,Nav,FileInput}.tsx`
+- `src/app/(app)/{categories,brands,suppliers,order-list,expiry}/page.tsx`,
+  `src/app/(app)/pickup-lists/[id]/page.tsx`, `src/app/(app)/warehouse/[id]/page.tsx`,
+  `src/app/(app)/products/[id]/edit/page.tsx`
+
+**Vad du lärde dig idag:**
+- Varför en "föreslagen men obekräftad" AI-matchning måste blockeras på samma nivå som en helt
+  saknad produktkoppling - annars är hela poängen med `matchStatus`-fältet meningslös.
+- Att Tailwind v4:s `@theme`-block kan omdefiniera en inbyggd färgpalett (`neutral`) globalt, vilket
+  gör en genomgripande färgändring till en enda-fils-ändring istället för hundratals klassbyten.
+- Att `revalidatePath` i den här Next.js-versionen (16.2) uppdaterar alla tidigare besökta sidor
+  vid nästa navigering, inte bara den angivna vägen - ett dokumenterat, versionsspecifikt beteende
+  som gjorde en misstänkt "saknas revalidatePath('/') efter X"-bugg till ett icke-problem.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Se Fas 11-postens begränsningar (loading/error-states, kamerastreckkodsskanning).
+- "Backup- och återställningsrutiner har verifierats" (projektplanen avsnitt 33) är inte gjort -
+  en drift-/infrastrukturuppgift utanför själva appkoden.
+
+**Testresultat:** Typkontroll (`npx tsc --noEmit`) och lint (`npm run lint`) gröna genomgående.
+**Inte färdigtestat i webbläsaren av dig än** - hela detta pass (kritisk bugg, /staff, /settings,
+omdesign, navigering) väntar på ditt test innan det räknas som slutgiltigt godkänt.
+
+**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
+webbläsaren innan detta räknas som slutgiltigt godkänt.

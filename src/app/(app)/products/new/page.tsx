@@ -33,7 +33,7 @@ export default async function NewProductPage({
       <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">Ny produkt</h1>
 
       {params.duplicateNames && (
-        <div className="space-y-2 rounded-md bg-amber-50 px-3 py-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+        <div className="space-y-2 rounded-md bg-safety-50 px-3 py-3 text-sm text-safety-800 dark:bg-safety-950 dark:text-safety-300">
           <p>
             Hittade en möjlig dubblett (samma streckkod eller liknande namn):{" "}
             <strong>{params.duplicateNames}</strong>.

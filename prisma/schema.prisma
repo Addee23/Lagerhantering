@@ -54,8 +54,6 @@ model StaffMember {
 }
 
 // Oföränderlig aktivitetslogg (skills/logging-and-audit-rules.md).
-// Fler kopplingar (leverans, hämtlista, reklamation) läggs till i senare
-// faser när de objekten finns.
 model ActivityLog {
   id            Int      @id @default(autoincrement())
   eventType     String
@@ -67,6 +65,16 @@ model ActivityLog {
 
   staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
   staffMemberId Int?
+
+  // skills/logging-and-audit-rules.md: "Koppling till relaterad leverans,
+  // hämtlista och/eller reklamation, om tillämpligt" - utöver fritexten i
+  // description, så en loggrad går att slå upp direkt via relationen också.
+  delivery    Delivery?   @relation(fields: [deliveryId], references: [id])
+  deliveryId  Int?
+  pickupList  PickupList? @relation(fields: [pickupListId], references: [id])
+  pickupListId Int?
+  complaint   Complaint?  @relation(fields: [complaintId], references: [id])
+  complaintId Int?
 }
 
 // Fas 2 - Grundregister (skills/business-rules.md, punkt 5 och 6:
@@ -212,7 +220,8 @@ model PickupList {
   completedByStaffMemberId Int?
   completedByStaffMember   StaffMember? @relation(fields: [completedByStaffMemberId], references: [id])
 
-  items PickupListItem[]
+  items       PickupListItem[]
+  activityLogs ActivityLog[]
 }
 
 // En rad i hämtlistan för en specifik produkt. `requestedQuantity` är vad
@@ -268,9 +277,10 @@ model Delivery {
   approvedByStaffMemberId Int?
   approvedByStaffMember   StaffMember? @relation(fields: [approvedByStaffMemberId], references: [id])
 
-  items     DeliveryItem[]
-  documents DeliveryDocument[]
-  complaint Complaint?
+  items        DeliveryItem[]
+  documents    DeliveryDocument[]
+  complaint    Complaint?
+  activityLogs ActivityLog[]
 }
 
 // Det uppladdade originaldokumentet (faktura/följesedel). Fas 6 lägger till
@@ -471,8 +481,10 @@ model Complaint {
   status          ComplaintStatus @default(UTKAST)
   createdAt       DateTime        @default(now())
 
-  items  ComplaintItem[]
-  emails ComplaintEmail[]
+  items           ComplaintItem[]
+  emails          ComplaintEmail[]
+  unmatchedEmails UnmatchedEmail[]
+  activityLogs    ActivityLog[]
 }
 
 // En rad per avvikelse (DeliveryIssue) som samlas in i reklamationen.
@@ -484,9 +496,11 @@ model ComplaintItem {
   deliveryIssue   DeliveryIssue @relation(fields: [deliveryIssueId], references: [id])
 }
 
-// Ett mejl (utkast eller skickat) kopplat till reklamationen. Fas 9 bygger
-// bara utgående mejl - inkommande svar (IMAP) läggs till i Fas 10, men
-// modellen har redan plats för det (`direction`).
+// Ett mejl (utkast, skickat eller mottaget) kopplat till reklamationen.
+// `direction` skiljer "utgaende" (Fas 9) från "inkommande" (Fas 10, läst via
+// IMAP). `sentAt` betyder "skickat" för utgående och "mottaget" för
+// inkommande - null betyder bara "fortfarande ett redigerbart utkast" och
+// gäller därför bara utgående mejl.
 model ComplaintEmail {
   id          Int       @id @default(autoincrement())
   complaintId Int
@@ -504,6 +518,12 @@ model ComplaintEmail {
   sentByStaffMemberId Int?
   sentByStaffMember   StaffMember? @relation(fields: [sentByStaffMemberId], references: [id])
 
+  // Mejlets Message-ID (både egna skickade och inlästa via IMAP) - används
+  // för trådmatchning (skills/complaint-and-email-rules.md, prioritet 1) och
+  // för att förhindra att samma inkommande mejl importeras två gånger.
+  messageId String? @unique
+  inReplyTo String?
+
   attachments EmailAttachment[]
 }
 
@@ -514,4 +534,29 @@ model EmailAttachment {
   filePath         String
   fileName         String
   createdAt        DateTime       @default(now())
+}
+
+// Fas 10 - IMAP-inläsning (skills/complaint-and-email-rules.md). Ett
+// inkommande mejl som INTE kunde matchas automatiskt mot ett ärende (i
+// prioritetsordningen tråd-id → reklamationsnummer → faktura-/ordernummer →
+// leverantörens adress) hamnar här istället för att bara försvinna -
+// personalen kopplar det manuellt eller markerar det som irrelevant.
+enum UnmatchedEmailStatus {
+  OMATCHAD
+  KOPPLAD
+  IRRELEVANT
+}
+
+model UnmatchedEmail {
+  id          Int                  @id @default(autoincrement())
+  messageId   String               @unique
+  fromAddress String
+  subject     String
+  body        String               @db.Text
+  receivedAt  DateTime
+  createdAt   DateTime             @default(now())
+  status      UnmatchedEmailStatus @default(OMATCHAD)
+
+  linkedComplaintId Int?
+  linkedComplaint   Complaint? @relation(fields: [linkedComplaintId], references: [id])
 }

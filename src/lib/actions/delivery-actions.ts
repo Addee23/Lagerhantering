@@ -6,8 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { checkStaffPin, redirectWithPinError } from "@/lib/pin-verification";
 import { saveUploadedFile } from "@/lib/file-upload";
 import { DeliveryIssueType } from "@/generated/prisma/client";
-
-const DEFAULT_SHORT_EXPIRY_DAYS = 90;
+import { getDefaultShortExpiryDays } from "@/lib/settings";
 
 function textOrNull(value: FormDataEntryValue | null): string | null {
   const str = String(value ?? "").trim();
@@ -92,10 +91,12 @@ export async function markAllOkAction(deliveryId: number): Promise<void> {
     include: { issues: true },
   });
 
-  // Rader utan produktkoppling (AI-tolkade, ej matchade/bekräftade) räknas
-  // inte som klara även om de saknar avvikelser - de måste kopplas först.
+  // Rader utan produktkoppling ELLER med en obekräftad AI-gissning
+  // (matchStatus "SUGGESTED") räknas inte som klara även om de saknar
+  // avvikelser - en föreslagen koppling måste bekräftas av en människa
+  // innan raden får räknas som klar (samma princip som approveDeliveryAction).
   const idsWithoutIssues = items
-    .filter((item) => item.issues.length === 0 && item.productId != null)
+    .filter((item) => item.issues.length === 0 && item.productId != null && item.matchStatus === "MATCHED")
     .map((item) => item.id);
 
   await prisma.deliveryItem.updateMany({
@@ -192,6 +193,7 @@ export async function resolveShortExpiryAction(
           description: `Accepterade kort bäst före-datum för "${productLabel}" i leverans #${deliveryId}.`,
           reason: comment ?? undefined,
           staffMemberId,
+          deliveryId,
         },
       }),
     ]);
@@ -245,13 +247,17 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
   // transaktionsstängningen längre ner.
   const supplierId = delivery.supplierId;
 
-  const threshold = delivery.supplier?.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
+  const threshold = delivery.supplier?.defaultShortExpiryDays ?? (await getDefaultShortExpiryDays());
   const now = Date.now();
 
   for (const item of delivery.items) {
     // skills, 16: "Alla okopplade produkter har hanterats" - en AI-tolkad
-    // rad utan produkt kan aldrig godkännas som den är.
-    if (!item.productId) {
+    // rad utan produkt kan aldrig godkännas som den är. Viktigt: en rad med
+    // matchStatus "SUGGESTED" HAR redan ett productId (AI:ns förslag), men
+    // det är inte bekräftat av en människa än - utan den här kontrollen
+    // hade en obekräftad AI-gissning kunnat godkännas tyst som om den vore
+    // säker, vilket bryter mot att AI:n aldrig får fatta beslutet själv.
+    if (!item.productId || item.matchStatus !== "MATCHED") {
       redirect(`${path}?error=produkt-ej-kopplad`);
     }
     const isHandled = item.confirmedOk || item.issues.length > 0;
@@ -315,6 +321,7 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
     // per DeliveryIssue. Bara ett utkast: inget mejl skickas här, det görs
     // separat efter mänsklig granskning + PIN (Fas 9).
     let complaintNumber: string | null = null;
+    let createdComplaintId: number | null = null;
     if (itemsWithIssues.length > 0) {
       const year = new Date().getFullYear();
       const countThisYear = await tx.complaint.count({
@@ -322,7 +329,7 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
       });
       complaintNumber = `REK-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
 
-      await tx.complaint.create({
+      const createdComplaint = await tx.complaint.create({
         data: {
           complaintNumber,
           deliveryId,
@@ -334,6 +341,7 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
           },
         },
       });
+      createdComplaintId = createdComplaint.id;
     }
 
     await tx.activityLog.create({
@@ -345,6 +353,8 @@ export async function approveDeliveryAction(deliveryId: number, formData: FormDa
           complaintNumber ? `, ${itemsWithIssues.length} med avvikelse - reklamation ${complaintNumber} skapad` : ""
         }).`,
         staffMemberId,
+        deliveryId,
+        complaintId: createdComplaintId,
       },
     });
   });

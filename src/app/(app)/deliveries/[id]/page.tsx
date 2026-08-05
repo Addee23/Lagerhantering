@@ -24,6 +24,7 @@ import { Alert } from "@/components/Alert";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FileInput } from "@/components/FileInput";
 import { ISSUE_TYPE_LABELS } from "@/lib/issue-labels";
+import { getDefaultShortExpiryDays } from "@/lib/settings";
 
 const ERROR_MESSAGES: Record<string, string> = {
   "obehandlade-rader": "Alla rader måste markeras som klara eller ha en avvikelse registrerad.",
@@ -53,8 +54,6 @@ function getLowConfidenceLabel(fieldConfidence: unknown): string | null {
   const overall = (fieldConfidence as { overall?: unknown }).overall;
   return typeof overall === "string" ? (LOW_CONFIDENCE_LABELS[overall] ?? null) : null;
 }
-
-const DEFAULT_SHORT_EXPIRY_DAYS = 90;
 
 // Egen (icke-komponent) funktion, så att den impure Date.now()-anropet inte
 // sker direkt inuti sidkomponentens render (react-hooks/purity-regeln).
@@ -87,7 +86,7 @@ export default async function DeliveryDetailPage({
   const { error, pinError } = await searchParams;
   const deliveryId = Number(id);
 
-  const [delivery, staffMembers, products, suppliers] = await Promise.all([
+  const [delivery, staffMembers, products, suppliers, defaultShortExpiryDays] = await Promise.all([
     prisma.delivery.findUnique({
       where: { id: deliveryId },
       include: {
@@ -101,6 +100,7 @@ export default async function DeliveryDetailPage({
     getActiveStaffMembers(),
     prisma.product.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.supplier.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    getDefaultShortExpiryDays(),
   ]);
 
   if (!delivery) {
@@ -108,14 +108,21 @@ export default async function DeliveryDetailPage({
   }
 
   const isDraft = delivery.status === "UTKAST";
-  const threshold = delivery.supplier?.defaultShortExpiryDays ?? DEFAULT_SHORT_EXPIRY_DAYS;
+  const threshold = delivery.supplier?.defaultShortExpiryDays ?? defaultShortExpiryDays;
 
   const itemViews = delivery.items.map((item) => getItemView(item, threshold));
 
   const allReady =
     delivery.items.length > 0 &&
     delivery.supplierId != null &&
-    itemViews.every((v) => v.item.productId != null && v.isHandled && v.shortExpiryOk && v.receivedOk);
+    itemViews.every(
+      (v) =>
+        v.item.productId != null &&
+        v.item.matchStatus === "MATCHED" &&
+        v.isHandled &&
+        v.shortExpiryOk &&
+        v.receivedOk,
+    );
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -143,15 +150,15 @@ export default async function DeliveryDetailPage({
 
         {delivery.complaint && (
           <p className="mt-2 text-sm">
-            <Link href={`/complaints/${delivery.complaint.id}`} className="text-amber-700 hover:underline dark:text-amber-400">
+            <Link href={`/complaints/${delivery.complaint.id}`} className="text-safety-700 hover:underline dark:text-safety-400">
               Reklamation {delivery.complaint.complaintNumber} skapad från avvikelserna på den här leveransen →
             </Link>
           </p>
         )}
 
         {isDraft && !delivery.supplierId && (
-          <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
-            <p className="font-medium text-amber-800 dark:text-amber-300">
+          <div className="mt-3 space-y-2 rounded-md bg-safety-50 p-3 text-sm dark:bg-safety-950">
+            <p className="font-medium text-safety-800 dark:text-safety-300">
               Leverantören är inte registrerad
               {delivery.rawSupplierName && ` (AI läste namnet "${delivery.rawSupplierName}")`}.
             </p>
@@ -167,7 +174,7 @@ export default async function DeliveryDetailPage({
                   required
                   className={inputClass}
                 />
-                <button type="submit" className="whitespace-nowrap rounded-md border border-amber-400 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                <button type="submit" className="whitespace-nowrap rounded-md border border-safety-400 px-3 py-2 text-sm font-medium text-safety-800 dark:text-safety-300">
                   Skapa leverantör
                 </button>
               </form>
@@ -256,7 +263,7 @@ export default async function DeliveryDetailPage({
                 </div>
               </div>
               {getLowConfidenceLabel(item.fieldConfidence) && (
-                <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <p className="mt-1 text-xs font-medium text-safety-600 dark:text-safety-400">
                   {getLowConfidenceLabel(item.fieldConfidence)}
                 </p>
               )}
@@ -267,19 +274,19 @@ export default async function DeliveryDetailPage({
               </p>
 
               {isDraft && item.matchStatus === "SUGGESTED" && (
-                <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
-                  <p className="text-amber-800 dark:text-amber-300">
+                <div className="mt-3 space-y-2 rounded-md bg-safety-50 p-3 text-sm dark:bg-safety-950">
+                  <p className="text-safety-800 dark:text-safety-300">
                     Föreslagen koppling till <strong>{item.product?.name}</strong> - stämmer det?
                   </p>
                   <div className="flex gap-2">
                     <form action={confirmSuggestedMatchAction.bind(null, delivery.id, item.id)}>
-                      <button type="submit" className="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-300">
+                      <button type="submit" className="rounded-md border border-safety-400 px-3 py-1.5 text-sm font-medium text-safety-800 dark:text-safety-300">
                         Ja, bekräfta kopplingen
                       </button>
                     </form>
                   </div>
                   <details>
-                    <summary className="cursor-pointer text-amber-700 hover:underline dark:text-amber-400">
+                    <summary className="cursor-pointer text-safety-700 hover:underline dark:text-safety-400">
                       Nej, koppla till en annan produkt
                     </summary>
                     <form
@@ -347,8 +354,8 @@ export default async function DeliveryDetailPage({
               )}
 
               {isDraft && isShort && !shortExpiryOk && (
-                <div className="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-sm dark:bg-amber-950">
-                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                <div className="mt-3 space-y-2 rounded-md bg-safety-50 p-3 text-sm dark:bg-safety-950">
+                  <p className="font-medium text-safety-800 dark:text-safety-300">
                     Kort bäst före-datum (under {threshold} dagar) - välj hur det ska hanteras:
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -356,7 +363,7 @@ export default async function DeliveryDetailPage({
                       <input type="hidden" name="decision" value="accepterad" />
                       <StaffPinFields staffMembers={staffMembers} />
                       <input name="comment" placeholder="Kommentar (valfritt)" className={inputClass} />
-                      <button type="submit" className="w-full rounded-md border border-amber-400 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-300">
+                      <button type="submit" className="w-full rounded-md border border-safety-400 py-1.5 text-sm font-medium text-safety-800 dark:text-safety-300">
                         Acceptera leveransen
                       </button>
                     </form>
@@ -411,7 +418,7 @@ export default async function DeliveryDetailPage({
 
               {isDraft && (
                 <div className="mt-3 flex items-center gap-4 text-sm">
-                  {!isHandled && item.productId != null && (
+                  {!isHandled && item.productId != null && item.matchStatus === "MATCHED" && (
                     <form action={markItemConfirmedOkAction.bind(null, delivery.id, item.id)}>
                       <button type="submit" className="text-green-700 hover:underline dark:text-green-400">
                         Markera rad som klar
@@ -483,67 +490,71 @@ export default async function DeliveryDetailPage({
 
       {isDraft && (
         <>
-          <form
-            action={addDeliveryItemAction.bind(null, delivery.id)}
-            className="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
-          >
-            <h2 className="font-medium text-neutral-900 dark:text-neutral-50">Lägg till produkt</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass} htmlFor="productId">
-                  Produkt
-                </label>
-                <select id="productId" name="productId" required className={inputClass}>
-                  <option value="">Välj produkt...</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="expiryDate">
-                  Bäst före-datum (valfritt)
-                </label>
-                <input id="expiryDate" name="expiryDate" type="date" className={inputClass} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass} htmlFor="documentedQuantity">
-                  Dokumenterat antal
-                </label>
-                <input
-                  id="documentedQuantity"
-                  name="documentedQuantity"
-                  type="number"
-                  min={1}
-                  required
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="receivedQuantity">
-                  Faktiskt mottaget antal
-                </label>
-                <input
-                  id="receivedQuantity"
-                  name="receivedQuantity"
-                  type="number"
-                  min={0}
-                  placeholder="Samma som dokumenterat om tomt"
-                  className={inputClass}
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700"
+          <details className="rounded-xl border border-neutral-200 dark:border-neutral-800">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              + Lägg till produkt
+            </summary>
+            <form
+              action={addDeliveryItemAction.bind(null, delivery.id)}
+              className="space-y-3 border-t border-neutral-200 p-4 dark:border-neutral-800"
             >
-              Lägg till rad
-            </button>
-          </form>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass} htmlFor="productId">
+                    Produkt
+                  </label>
+                  <select id="productId" name="productId" required className={inputClass}>
+                    <option value="">Välj produkt...</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="expiryDate">
+                    Bäst före-datum (valfritt)
+                  </label>
+                  <input id="expiryDate" name="expiryDate" type="date" className={inputClass} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass} htmlFor="documentedQuantity">
+                    Dokumenterat antal
+                  </label>
+                  <input
+                    id="documentedQuantity"
+                    name="documentedQuantity"
+                    type="number"
+                    min={1}
+                    required
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="receivedQuantity">
+                    Faktiskt mottaget antal
+                  </label>
+                  <input
+                    id="receivedQuantity"
+                    name="receivedQuantity"
+                    type="number"
+                    min={0}
+                    placeholder="Samma som dokumenterat om tomt"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium dark:border-neutral-700"
+              >
+                Lägg till rad
+              </button>
+            </form>
+          </details>
 
           <div className="flex items-center gap-4">
             <form action={markAllOkAction.bind(null, delivery.id)}>

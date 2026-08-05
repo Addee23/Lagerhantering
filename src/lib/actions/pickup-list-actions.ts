@@ -220,6 +220,7 @@ export async function completePickupListAction(
           deviationCount > 0 ? `, ${deviationCount} med avvikelse` : ""
         }) - varor flyttade till butiken.`,
         staffMemberId,
+        pickupListId,
       },
     });
   });

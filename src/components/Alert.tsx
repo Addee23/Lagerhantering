@@ -3,7 +3,7 @@ type Tone = "error" | "success" | "warning";
 const TONE_CLASSES: Record<Tone, string> = {
   error: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
   success: "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300",
-  warning: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  warning: "bg-safety-50 text-safety-700 dark:bg-safety-950 dark:text-safety-400",
 };
 
 // Delad meddelanderuta för fel/lyckat/varning - ersätter samma inline-klasser

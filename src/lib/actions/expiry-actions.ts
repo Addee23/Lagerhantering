@@ -19,7 +19,7 @@ export async function resolveExpiryRecordAction(
 
   const record = await prisma.expiryRecord.findUnique({
     where: { id: recordId },
-    include: { product: true },
+    include: { product: true, pickupListItem: { select: { pickupListId: true } } },
   });
   if (!record || record.status !== "AKTIV") return;
 
@@ -59,6 +59,7 @@ export async function resolveExpiryRecordAction(
             decision === "slut" ? "slut" : "flyttad"
           }.`,
           reason: comment ?? undefined,
+          pickupListId: record.pickupListItem?.pickupListId,
         },
       }),
     ]);
@@ -105,6 +106,7 @@ export async function resolveExpiryRecordAction(
           }.`,
           reason: comment ?? undefined,
           staffMemberId,
+          pickupListId: record.pickupListItem?.pickupListId,
         },
       }),
     ]);

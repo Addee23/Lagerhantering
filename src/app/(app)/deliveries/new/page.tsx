@@ -18,7 +18,7 @@ export default async function NewDeliveryPage() {
       <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">Ny leverans</h1>
 
       {suppliers.length === 0 ? (
-        <p className="text-sm text-amber-600 dark:text-amber-400">
+        <p className="text-sm text-safety-600 dark:text-safety-400">
           Inga leverantörer finns än.{" "}
           <Link href="/suppliers" className="underline">
             Skapa en leverantör
