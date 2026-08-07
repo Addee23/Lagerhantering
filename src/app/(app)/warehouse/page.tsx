@@ -31,7 +31,7 @@ export default async function WarehousePage() {
             <tr>
               <th className="px-4 py-2 font-medium">Produkt</th>
               <th className="px-4 py-2 font-medium">Saldo (flak/pall)</th>
-              <th className="px-4 py-2 font-medium">Lägsta önskade</th>
+              <th className="hidden px-4 py-2 font-medium sm:table-cell">Lägsta önskade</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -52,7 +52,7 @@ export default async function WarehousePage() {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-neutral-500 dark:text-neutral-400">
+                <td className="hidden px-4 py-2 text-neutral-500 sm:table-cell dark:text-neutral-400">
                   {product.minStockLevel ?? "–"}
                 </td>
                 <td className="px-4 py-2 text-right">

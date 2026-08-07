@@ -26,7 +26,7 @@ export default async function ActivityLogPage() {
             <thead className="border-b border-neutral-200 text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Datum och tid</th>
-                <th className="px-4 py-2 font-medium">Personal</th>
+                <th className="hidden px-4 py-2 font-medium sm:table-cell">Personal</th>
                 <th className="px-4 py-2 font-medium">Händelse</th>
                 <th className="px-4 py-2 font-medium">Kopplat till</th>
               </tr>
@@ -37,12 +37,12 @@ export default async function ActivityLogPage() {
                   key={entry.id}
                   className="border-b border-neutral-100 last:border-0 dark:border-neutral-800"
                 >
-                  <td className="whitespace-nowrap px-4 py-2 text-neutral-500 dark:text-neutral-400">
+                  <td className="whitespace-normal px-4 py-2 text-neutral-500 sm:whitespace-nowrap dark:text-neutral-400">
                     {entry.createdAt.toLocaleString("sv-SE")}
                   </td>
-                  <td className="px-4 py-2">{entry.staffMember?.name ?? "Okänd"}</td>
+                  <td className="hidden px-4 py-2 sm:table-cell">{entry.staffMember?.name ?? "Okänd"}</td>
                   <td className="px-4 py-2">{entry.description}</td>
-                  <td className="whitespace-nowrap px-4 py-2">
+                  <td className="whitespace-normal px-4 py-2 sm:whitespace-nowrap">
                     {entry.deliveryId && (
                       <Link href={`/deliveries/${entry.deliveryId}`} className="text-neutral-500 hover:underline">
                         Leverans #{entry.deliveryId}

@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const username = session?.username ?? "okänd";
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col md:flex-row">
+    <div className="flex min-h-dvh flex-1 flex-col md:flex-row">
       <Nav username={username} />
       <div className="flex flex-1 flex-col">
         <div className="flex justify-end border-b border-neutral-200 px-4 py-2 dark:border-neutral-800">

@@ -47,8 +47,21 @@ export async function matchProductForDeliveryItem(
     return { productId: exactName.id, matchStatus: "MATCHED" };
   }
 
-  const similarName = await prisma.product.findFirst({
-    where: { name: { contains: productName }, active: true },
+  // "Liknande namn" kan gå åt båda hållen: fakturans råtext är ofta den mer
+  // utförliga varianten (t.ex. "PRINGLES SMÅ HOT & SPICY 40g") medan
+  // katalognamnet är kortare/renare (t.ex. "Pringles Hot & Spicy") - ett
+  // enkelriktat `contains` (bara katalognamn i fakturatext) hade aldrig
+  // hittat sådana förslag. Hämtas i JS eftersom Prisma inte kan jämföra två
+  // dynamiska strängar mot varandra i en `where`-sats.
+  const activeProducts = await prisma.product.findMany({
+    where: { active: true },
+    select: { id: true, name: true },
+  });
+  const normalizedInput = productName.toLowerCase();
+  const similarName = activeProducts.find(({ name }) => {
+    const normalizedName = name.trim().toLowerCase();
+    if (normalizedName.length < 3) return false;
+    return normalizedName.includes(normalizedInput) || normalizedInput.includes(normalizedName);
   });
   if (similarName) {
     return { productId: similarName.id, matchStatus: "SUGGESTED" };

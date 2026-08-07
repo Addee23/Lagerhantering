@@ -628,12 +628,12 @@ ett kodfel).
 - Fast 60-dagars sökfönster (`LOOKBACK_DAYS`) - ett svar som kommer långt efter det fönstret hade
   inte hittats. Inget problem i praktiken eftersom reklamationer normalt löses inom veckor.
 
-**Testresultat:** Typkontroll och lint gröna. **Inte färdigtestat i webbläsaren av dig än** - IMAP
-kräver riktiga inkommande mejl (svar från en leverantör, eller ett manuellt skickat testmejl till
-inkorgen) för ett fullständigt test, vilket sköts upp till nästa testpass.
+**Testresultat:** OK - testat i webbläsaren av användaren 2026-08-07: "Hämta nya mejl" fungerar,
+omatchade mejl listas korrekt, manuell koppling till reklamation fungerar (status blir "Väntar på
+svar"), "Markera irrelevant" fungerar, och dedup mot `messageId` bekräftad - en andra klick på
+"Hämta nya mejl" skapar inga dubbletter.
 
-**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
-webbläsaren innan detta räknas som slutgiltigt godkänt.
+**Godkänt att gå vidare:** Ja (2026-08-07)
 
 ---
 
@@ -690,11 +690,13 @@ webbläsaren innan detta räknas som slutgiltigt godkänt.
 - Kamera-streckkodsskanning (projektplanen avsnitt 25) är fortfarande inte byggd - en känd,
   medveten avgränsning sedan Fas 4.
 
-**Testresultat:** Typkontroll och lint gröna efter samtliga fixar. **Inte färdigtestat i
-webbläsaren av dig än.**
+**Testresultat:** OK - testat 2026-08-07 (dels manuellt av användaren, dels automatiserat med
+Playwright headless mot dev-servern): dashboardets 9 rader länkar till rätt filtrerade sidor
+("Lågt lagersaldo" → `/warehouse`, "Aktiva hämtlistor" → `/pickup-lists` m.fl.), global sökning
+fungerar och filtrerar bort inaktiva poster, `/activity-log` visar "Kopplat till"-kolumnen med
+fungerande länk (verifierat med skärmdump - klick på "Reklamation #1" leder till `/complaints/1`).
 
-**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
-webbläsaren innan detta räknas som slutgiltigt godkänt.
+**Godkänt att gå vidare:** Ja (2026-08-07)
 
 ---
 
@@ -774,8 +776,165 @@ inputfält ska inte fylla hela sidan"):**
   en drift-/infrastrukturuppgift utanför själva appkoden.
 
 **Testresultat:** Typkontroll (`npx tsc --noEmit`) och lint (`npm run lint`) gröna genomgående.
-**Inte färdigtestat i webbläsaren av dig än** - hela detta pass (kritisk bugg, /staff, /settings,
-omdesign, navigering) väntar på ditt test innan det räknas som slutgiltigt godkänt.
+Testat i webbläsaren 2026-08-07 - se "Kodgranskningspasset - testat (2026-08-07)" längst ner i
+loggen för resultat.
 
-**Godkänt att gå vidare:** Preliminärt (kod klar och självgranskad) - väntar på ditt test i
-webbläsaren innan detta räknas som slutgiltigt godkänt.
+**Godkänt att gå vidare:** Ja (2026-08-07, se testposten längst ner i loggen)
+
+---
+
+### Fas 11 tillägg (2026-08-05) – Laddnings-, fel- och 404-sidor
+
+**Vad byggdes:**
+- `loading.tsx`: automatisk laddningsindikator som visas medan en sida hämtar data (Next.js
+  App Router-konventionen, laddas in av ramverket utan egen kod i varje sida).
+- `error.tsx`: fångar körningsfel inom `(app)`-gruppen med ett svenskt felmeddelande och en
+  "Försök igen"-knapp (Next.js 16.2:s `unstable_retry`). Navigationen (`Nav`) förblir synlig så
+  personalen inte hamnar på en tom sida utan vägen tillbaka.
+- `not-found.tsx`: egen 404-sida för `notFound()`-anrop (t.ex. felaktigt id i URL:en), istället
+  för Next.js standardsida.
+- Detta stänger det gap som noterades som känd begränsning i Fas 11-loggen ovan
+  ("Laddningslägen"/"Felmeddelanden", projektplanens Fas 11-punkter).
+- Kamera-streckkodsskanning (projektplanens avsnitt 25) medvetet fortsatt uppskjuten - deadline
+  prioriterar väl testad kod framför en oprövad kamerafunktion.
+
+**Berörda filer:**
+- `src/app/(app)/loading.tsx` (ny)
+- `src/app/(app)/error.tsx` (ny)
+- `src/app/(app)/not-found.tsx` (ny)
+
+**Vad du lärde dig idag:**
+- Skillnaden mellan Next.js App Router-konventionerna `loading.tsx` (visas automatiskt under
+  datahämtning), `error.tsx` (fångar oväntade körningsfel, måste vara en Client Component) och
+  `not-found.tsx` (visas vid explicit `notFound()`-anrop, t.ex. när ett id inte finns i databasen)
+  - tre olika felfall som annars hade gett en trasig eller blank sida.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Kamera-streckkodsskanning (avsnitt 25) - se ovan.
+- Backup-/återställningsrutiner (projektplanens avsnitt 33) fortfarande inte verifierade - en
+  drift-/infrastrukturuppgift utanför själva appkoden.
+
+**Testresultat:** Typkontroll (`npx tsc --noEmit`) och lint (`npm run lint`) gröna. Testat i
+webbläsaren 2026-08-07 - se "Loading/error/404-sidorna - testat (2026-08-07)" längst ner i loggen.
+
+**Godkänt att gå vidare:** Ja (2026-08-07, se testposten längst ner i loggen)
+
+---
+
+### Fas 11 tillägg 2 (2026-08-07) – Responsiva tabeller, sök i mobil toprad, dvh-layout
+
+**Vad byggdes:**
+- Under testningen upptäckte du att Produkter-tabellen krävde horisontell scroll på mobil.
+  Samma problem fanns på Lager och Aktivitetslogg (alla tre har `overflow-x-auto`-tabeller med
+  flest kolumner). Åtgärdat genom att dölja de minst kritiska kolumnerna under `sm`-brytpunkten
+  (Tailwind `hidden sm:table-cell`): Produkter döljer Streckkod/Kategori/Varumärke, Lager döljer
+  Lägsta önskade, Aktivitetslogg döljer Personal. Datum och "Kopplat till" i aktivitetsloggen
+  radbryter numera istället för att tvinga fram scroll (`whitespace-normal sm:whitespace-nowrap`).
+- Sökrutan fanns bara i den utfällbara hamburgermenyn på mobil - flyttad till mobilens fasta
+  toprad (bredvid loggan och hamburgerikonen) så den alltid är synlig, inte gömd bakom ett extra
+  klick. Dubblettsökrutan i den utfällbara menyn borttagen.
+- `min-h-screen` (`100vh`) byttes till `min-h-dvh` (`100dvh`) i `(app)/layout.tsx` och
+  `login/page.tsx` - undviker layout-hopp på mobil när adressfältet visas/döljs vid scroll.
+  Sidomenyns höjd följer redan detta automatiskt via flexbox (`flex md:flex-row`), inget separat
+  calc behövdes.
+
+**Berörda filer:**
+- `src/app/(app)/products/page.tsx`, `src/app/(app)/warehouse/page.tsx`,
+  `src/app/(app)/activity-log/page.tsx` (responsiva kolumner)
+- `src/components/Nav.tsx` (sökruta i mobil toprad)
+- `src/app/(app)/layout.tsx`, `src/app/login/page.tsx` (`dvh`)
+
+**Vad du lärde dig idag:**
+- Skillnaden mellan att gömma hela tabellen bakom scroll (dåligt för mobil) och att selektivt
+  dölja mindre kritiska kolumner med Tailwinds `hidden sm:table-cell` - datan finns kvar för den
+  som klickar in på raden, bara inte i listvyn på en smal skärm.
+- Varför `100dvh` föredras framför `100vh` på mobil: `vh` räknar in ytan bakom adressfältet även
+  när det är synligt, vilket ger ett layout-hopp när fältet döljs vid scroll - `dvh` följer den
+  faktiskt synliga ytan.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Samma som tidigare (kamera-streckkodsskanning, backup-/återställningsrutiner).
+
+**Testresultat:** OK - typkontroll och lint gröna. Verifierat automatiserat (Playwright, 375px
+viewport): ingen horisontell overflow på `/products`, `/warehouse` eller `/activity-log`, och
+sökrutan är synlig i mobilens toprad.
+
+**Godkänt att gå vidare:** Ja (2026-08-07)
+
+---
+
+### Kodgranskningspasset - testat (2026-08-07)
+
+Fas 11-loggens "Kodgranskning + designomarbetning (2026-08-05)"-post ovan väntade på webbläsartest.
+Testat 2026-08-07, dels manuellt av användaren, dels automatiserat med Playwright headless
+(temporärt QA-inloggningskonto och en temporär `SUGGESTED`-teststatus på en leveransrad, båda
+borttagna/återställda efter testet).
+
+**Testresultat:**
+- **Kritiska buggfixen** (SUGGESTED-rader ska inte kunna godkännas): bekräftad. En rad med
+  `matchStatus SUGGESTED` visar den gula "Föreslagen koppling till X - stämmer det?"-rutan med
+  "Ja, bekräfta kopplingen"-knappen, och huvudknappen "Godkänn och uppdatera lager" är disabled
+  tills raden bekräftats.
+- **`/staff`**: att lägga till personal, byta PIN-kod och växla Aktiv/Inaktiv fungerar alla och
+  ger korrekt "Sparat."-bekräftelse respektive badge-ändring.
+- **`/settings`**: "Standardgräns för kort bäst före-datum" sparas och kvarstår efter omladdning.
+  Systemlösenord-sektionen finns med rätt fält (ej testad i sak, för att inte låsa ute
+  inloggningen).
+- Mindre observation: en hydration-varning (`caret-color: transparent`-attribut) dök upp i
+  webbläsarkonsolen under det automatiserade testet, på i princip alla formulärfält på
+  leveranssidan och i sökrutan. Verkar vara en artefakt från den headless testmiljön (Playwright/
+  Chromium), inte kopplad till någon specifik komponent vi ändrat - värt att hålla ett öga på om
+  den dyker upp i en riktig webbläsare också, men inget som blockerar godkännandet nu.
+
+**Godkänt att gå vidare:** Ja (2026-08-07)
+
+---
+
+### Loading/error/404-sidorna - testat (2026-08-07)
+
+**Testresultat:** OK - `/products/99999/edit` visar den egna 404-sidan ("Hittades inte") med
+"Till startsidan"-knappen, inte Next.js standardsida. Loading/error-lägena bedöms fungera utifrån
+kod och Next.js-konventionen (svåra att trigga deterministiskt i ett automatiserat test), inget
+avvikande beteende observerat under testpasset.
+
+**Godkänt att gå vidare:** Ja (2026-08-07)
+
+---
+
+### Fas 6 fix (2026-08-07) – Enkelriktad "liknande namn"-matchning
+
+**Vad byggdes:**
+- Under testpasset ovan uppmärksammade du att ingen leveransrad någonsin fått status
+  `SUGGESTED` ("föreslagen koppling"), trots att godkännande-spärren för det läget nyss
+  bekräftats fungera med en testrad. Grundorsaken var dels att produktkatalogen just nu bara har
+  3 testprodukter (`HejTest`, `Red Bill`, `Red Bull`), dels en riktig logikbrist i
+  `src/lib/ai/match-product.ts`: "liknande namn"-steget kollade bara om ett **befintligt
+  katalognamn innehöll hela fakturans råtext** (`product.name.contains(productName)`). Fakturans
+  text är ofta den mer utförliga varianten (t.ex. "RED BULL SOCKERFRI OBS! 355 ML BURK") medan
+  katalognamnet är kortare ("Red Bull") - då kan det korta namnet aldrig innehålla det långa, och
+  `SUGGESTED` triggades i praktiken aldrig för sådana fall.
+- Fixat till att jämföra i båda riktningarna (katalognamn i fakturatext ELLER fakturatext i
+  katalognamn), skiftlägesokänsligt, med ett minimilängdskrav (3 tecken) på katalognamnet för att
+  undvika falska träffar från väldigt korta produktnamn. Görs i JS eftersom Prisma inte kan
+  jämföra två dynamiska strängar mot varandra i en `where`-sats.
+
+**Berörda filer:**
+- `src/lib/ai/match-product.ts`
+
+**Vad du lärde dig idag:**
+- Varför ett enkelriktat `contains`-filter i databasen kan se korrekt ut men ändå aldrig träffa
+  i praktiken, beroende på vilken sida (databaskolumnen eller det inskickade värdet) som
+  faktiskt är den längre/mer detaljerade strängen - och varför den sortens jämförelse ibland
+  måste göras i applikationskoden istället för i själva SQL-frågan.
+
+**Kända begränsningar / saker vi skjuter upp:**
+- Produktkatalogen är fortfarande testdata (3 produkter) - `SUGGESTED`-läget går inte att se
+  naturligt förrän en riktig produktkatalog finns på plats, men logiken är nu verifierad manuellt
+  med realistiska fakturanamn (se testresultat).
+
+**Testresultat:** OK - typkontroll och lint gröna. Manuellt testat med ett litet skript:
+`"RED BULL SOCKERFRI OBS! 355 ML BURK (PAN"` ger nu korrekt `SUGGESTED` mot katalogens "Red
+Bull" (gav `UNMATCHED` innan fixen); ett namn utan någon rimlig katalogträff (t.ex. Pringles, som
+saknas helt i katalogen) ger fortsatt korrekt `UNMATCHED`.
+
+**Godkänt att gå vidare:** Ja (2026-08-07)

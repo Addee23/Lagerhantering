@@ -9,9 +9,15 @@ import { NAV_ITEMS } from "@/lib/nav-items";
 // navigationen som täcker produkter, leverantörer, varumärken, inleveranser
 // och reklamationer (se src/lib/search.ts). Vanlig GET-navigering till
 // /search, ingen JS krävs för att söka.
-function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
+function SearchBox({
+  onNavigate,
+  className = "mb-4",
+}: {
+  onNavigate?: () => void;
+  className?: string;
+}) {
   return (
-    <form method="get" action="/search" onSubmit={onNavigate} className="mb-4">
+    <form method="get" action="/search" onSubmit={onNavigate} className={className}>
       <input
         type="search"
         name="q"
@@ -55,16 +61,17 @@ export function Nav({ username }: { username: string }) {
 
   return (
     <>
-      {/* Mobil: kompakt topprad med hamburgermeny */}
-      <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 md:hidden dark:border-neutral-800">
-        <Link href="/" className="font-semibold text-neutral-900 dark:text-neutral-50">
+      {/* Mobil: kompakt topprad med sökruta alltid synlig + hamburgermeny */}
+      <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3 md:hidden dark:border-neutral-800">
+        <Link href="/" className="shrink-0 font-semibold text-neutral-900 dark:text-neutral-50">
           Hela Rubbet
         </Link>
+        <SearchBox className="min-w-0 flex-1" />
         <button
           type="button"
           aria-label="Öppna meny"
           onClick={() => setIsOpen(true)}
-          className="rounded-md border border-neutral-300 p-2 dark:border-neutral-700"
+          className="shrink-0 rounded-md border border-neutral-300 p-2 dark:border-neutral-700"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path
@@ -91,7 +98,6 @@ export function Nav({ username }: { username: string }) {
                 ✕
               </button>
             </div>
-            <SearchBox onNavigate={() => setIsOpen(false)} />
             <NavLinks onNavigate={() => setIsOpen(false)} />
             <p className="mt-6 truncate text-xs text-neutral-400">Inloggad som {username}</p>
           </div>

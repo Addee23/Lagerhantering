@@ -58,9 +58,9 @@ export default async function ProductsPage({
           <thead className="border-b border-neutral-200 text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
             <tr>
               <th className="px-4 py-2 font-medium">Namn</th>
-              <th className="px-4 py-2 font-medium">Streckkod</th>
-              <th className="px-4 py-2 font-medium">Kategori</th>
-              <th className="px-4 py-2 font-medium">Varumärke</th>
+              <th className="hidden px-4 py-2 font-medium sm:table-cell">Streckkod</th>
+              <th className="hidden px-4 py-2 font-medium sm:table-cell">Kategori</th>
+              <th className="hidden px-4 py-2 font-medium sm:table-cell">Varumärke</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2" />
             </tr>
@@ -72,13 +72,13 @@ export default async function ProductsPage({
                 className="border-b border-neutral-100 last:border-0 dark:border-neutral-800"
               >
                 <td className="px-4 py-2">{product.name}</td>
-                <td className="px-4 py-2 text-neutral-500 dark:text-neutral-400">
+                <td className="hidden px-4 py-2 text-neutral-500 sm:table-cell dark:text-neutral-400">
                   {product.barcode ?? "–"}
                 </td>
-                <td className="px-4 py-2 text-neutral-500 dark:text-neutral-400">
+                <td className="hidden px-4 py-2 text-neutral-500 sm:table-cell dark:text-neutral-400">
                   {product.category?.name ?? "–"}
                 </td>
-                <td className="px-4 py-2 text-neutral-500 dark:text-neutral-400">
+                <td className="hidden px-4 py-2 text-neutral-500 sm:table-cell dark:text-neutral-400">
                   {product.brand?.name ?? "–"}
                 </td>
                 <td className="px-4 py-2">
